@@ -14,33 +14,44 @@ $Author$
 #include "ipchelper.h"
 #include "sighandler.h"
 #include "filehelper.h"
-#define INFILE "./strings.in"
-
 
 int initsighandlers();
 int initsharedmemory(int shmid);
 int initsemaphores(int semid);
+void printusage();
 
 int main (int argc, char** argv) {
 	/*************** Get options  *****************/
+	int maxslaves = 5;
+	int timeout = 20;
+	char* fname = "default.log";
+	opterr = 0;
 	char c;
 	while ((c = getopt(argc, argv, "hs:l:t:")) != -1) {
 		switch(c) {
 			case 'h':
-				fprintf(stderr, "Usage: ");
-				fprintf(stderr, "./oss [-s x] [-l filename] ");
-				fprintf(stderr, "[-t z]\nx: max # slave pxs\n");
-				fprintf(stderr, "filename: of log\n");
-				fprintf(stderr, "z: timeout (sec)\n");
+				printusage();
 				return 0;
-				break;
 			case 's':
+				maxslaves = atoi(optarg);	
+				if (maxslaves < 1 || maxslaves > 19) {
+					printusage();
+					return 1;
+				}
 				break;
 			case 'l':
+				fname = optarg;
 				break;
 			case 't':
+				timeout	= atoi(optarg);
+				if (timeout < 1 || timeout > 1000) {
+					printusage();
+					return 1;
+				}
 				break;
 			case '?':
+				fprintf(stderr, "Invalid option %c\n", c);
+				printusage();
 				return 1;
 			default:
 				return 1;
@@ -203,3 +214,12 @@ int initsemaphores(int semid) {
 	}
 	return 0;
 }
+
+void printusage() {
+	fprintf(stderr, "Usage: ");
+	fprintf(stderr, "./oss [-s x] [-l filename] ");
+	fprintf(stderr, "[-t z]\n\nx: max # slave pxs [1-19]\n");
+	fprintf(stderr, "filename: of log\n");
+	fprintf(stderr, "z: timeout (sec) [1-1000]\n\n");
+}
+
