@@ -27,14 +27,6 @@ char* trimstring(const char* string);
 int initsighandler();
 
 int main (int argc, char** argv) {
-	// check for # of args
-	if (argc < 3) {
-		fprintf(stderr, "Wrong # of args. ");
-		return 1;
-	}
-	// if not number, then id, index = 0, respectively
-//	int id = atoi(argv[1]);
-	int index = atoi(argv[2]);
 
 	// random r1 r2 for sleep 
 	int r1, r2;
@@ -103,11 +95,11 @@ int main (int argc, char** argv) {
 
 	
 	/************ Entry section ***************/	
-	fprintf(stderr, "im in entry section\n.");
+	//fprintf(stderr, "im in entry section\n.");
 	// wait until your turn
 	if (semop(semid, mutex, 1) == -1){
 		if (errno == EIDRM) {
-			fprintf(stderr, "(ch:=%d) interrupted.\n", index);
+			fprintf(stderr, "child interrupted.\n");
 			return 1;
 		}
 		perror("Failed to lock semid.");
@@ -123,66 +115,31 @@ int main (int argc, char** argv) {
 	/************ Critical section ***********/
 	const time_t tma = time(NULL);
 	char* tme = ctime(&tma);
-	fprintf(stderr, "(ch:=%d) in crit sec: %s", index, tme); 
+	fprintf(stderr, "child %ld in crit sec @ %s", (long)getpid(), tme); 
 	sleep(r1);
 
 	sleep(r2);
 	/*********** Exit section **************/
-	// Unblock signals after critical sections
-	if ((sigprocmask(SIG_BLOCK, &newmask, &oldmask) == -1)) {
-		perror("Failed setting signal mask.");
-		return 1;
-	} 
 	// unlock file
 	if (semop(semid, mutex+1, 1) == -1) { 		
 		if (errno == EINVAL) {
 			char* msg = "finished critical section after signal";
-			fprintf(stderr, "(ch:=%d) %s\n", index, msg);
+			fprintf(stderr, "child %ld %s\n", (long)getpid(), msg);
 			return 1;
 		}
 		perror("Failed to unlock semid.");
 		return 1;
 	}
+	// Unblock signals after critical sections
+	if ((sigprocmask(SIG_BLOCK, &newmask, &oldmask) == -1)) {
+		perror("Failed setting signal mask.");
+		return 1;
+	} 
  	if (errno != 0) {
 		perror("palin uncaught error:");
 		return 1;
 	}
 	return 0;
-}
-
-// returns 1 if palindrome, -1 if not
-int palindrome(const char* string) {
-	int i = 0;
-	char* trimmed = trimstring(string);
-	int len = strlen(trimmed);
-	int j = len - 1;
-	for (i = 0; i < len/2; i++) {
-		if (trimmed[i] != trimmed[j]) 
-			return -1;
-		j--;
-	}
-	return 1;
-}
-
-// returns the string with only alphanumeric lowercase characters
-char* trimstring(const char* string) {
-	char* trimmed = (char*)malloc(LINESIZE*sizeof(char));
-	int i, j;
-	char t;
-	j = 0;
-	for (i = 0; i < LINESIZE; i++) {
-		t = string[i];	
-		if (isalpha(t) || isdigit(t) || (t == '\0')) {
-			if (isupper(t)) {
-				t = tolower(t);	
-			}
-			trimmed[j] = t;
-			if (trimmed[j] == '\0')
-				break;
-			j++;
-		}
-	} 	
-	return trimmed;
 }
 
 // initialize signal handler, return -1 on error

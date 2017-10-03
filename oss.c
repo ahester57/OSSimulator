@@ -17,7 +17,7 @@ $Author$
 #include "filehelper.h"
 
 int initsighandlers();
-int initsharedmemory(int shmid);
+oss_clock_t* initsharedmemory(int shmid);
 int initsemaphores(int semid);
 void printusage();
 
@@ -36,16 +36,22 @@ int main (int argc, char** argv) {
 		case 's':
 			maxslaves = atoi(optarg);	
 			if (maxslaves < 1 || maxslaves > 19) {
+				fprintf(stderr, "\tx must be from 1-19.\n");
 				printusage();
 				return 1;
 			}
 			break;
 		case 'l':
-			fname = optarg;
-			break;
+			if (isalpha(optarg[0])) {
+				fname = optarg;
+				break;
+			}
+			fprintf(stderr, "\tFilename must start with letter.\n");
+			return 1;	
 		case 't':
 			timeout	= atoi(optarg);
 			if (timeout < 1 || timeout > 1000) {
+				fprintf(stderr, "\tz must be from 1-1000.\n");
 				printusage();
 				return 1;
 			}
@@ -61,6 +67,7 @@ int main (int argc, char** argv) {
 			return 1;
 		}
 	}
+	alarm(timeout);
 
 	// get key from file
 	key_t mkey, skey, shmkey;
@@ -84,12 +91,10 @@ int main (int argc, char** argv) {
 		perror("Failed to create shared memory segment.");
 		return 1;
 	}	
-	if ((clock = attachshmclock(shmid)) == (void*)-1) {
+	if ((clock = initsharedmemory(shmid)) == (void*)-1) {
 		perror("Failed to attack shared memory.");	
 		return 1;
 	}
-	clock->sec = 0;
-	clock->nsec = 0;
 
 	/*************** Set up semaphore *************/
 	// semaphore contains 3 sems:
@@ -118,18 +123,14 @@ int main (int argc, char** argv) {
 	/****************** Spawn Children ***********/
 	// make child
 	// char[]'s for sending id and index to child process
-	int childpid;
-	char palinid[16];
-	char palinindex[16];
+	long childpid;
 	int j = 0;
-	while (j < 9) {
+	while (j < maxslaves) {
 		if ((childpid = fork()) <= 0) {
 			// set id and msg index
-			sprintf(palinid, "%d", j+1 % 20);
-			sprintf(palinindex, "%d", j);
 			break;
 		}  
-		fprintf(stderr, "... child  w/ index: %d spawned.\n", j);
+		fprintf(stderr, "... child %ld spawned.\n", childpid);
 		if (childpid != -1)	
 			j++;
 	}
@@ -145,12 +146,13 @@ int main (int argc, char** argv) {
 	if (childpid == 0) {
 		sleep(1);
 		// execute child with id
-		execl("./child", "child", palinid, palinindex, (char*)NULL);
+		execl("./child", "child", (char*)NULL);
 		perror("Exec failure.");
 		return 1; // if error
 	}
 	/***************** Parent *****************/
 	if (childpid > 0) {
+		fprintf(stderr, "Filename for log: %s\n", fname);
 		fprintf(stderr, "master: done spawning, waiting for done.\n");	
 		// Waits for all children to be done
 		while (wait(NULL)) {
@@ -190,16 +192,15 @@ int initsighandlers() {
 }
 
 // initialize shared memory, return -1 on error
-int initsharedmemory(int shmid) {
-	// set up file i/o lock
-	if (initelement(shmid, 0, 1) == -1) {
-		return -1;
+oss_clock_t* initsharedmemory(int shmid) {
+	oss_clock_t* clock;
+	if ((clock = attachshmclock(shmid)) == (void*)-1) {
+		perror("Failed to attack shared memory.");	
+		return (void*)-1;
 	}
-	// set up child limiter
-	if (initelement(shmid, 2, 19) == -1) {
-		return -1;
-	}
-	return 0;
+	clock->sec = 0;
+	clock->nsec = 0;
+	return clock;
 }
 
 // initialize semaphores, return -1 on error
@@ -220,10 +221,10 @@ int initsemaphores(int semid) {
 }
 
 void printusage() {
-	fprintf(stderr, "\nUsage: ");
+	fprintf(stderr, "\n\tUsage: ");
 	fprintf(stderr, "./oss [-s x] [-l filename] ");
-	fprintf(stderr, "[-t z]\n\nx: max # slave pxs [1-19]\n");
-	fprintf(stderr, "filename: of log\n");
-	fprintf(stderr, "z: timeout (sec) [1-1000]\n");
+	fprintf(stderr, "[-t z]\n\n\tx: max # slave pxs [1-19]\n");
+	fprintf(stderr, "\tfilename: of log\n");
+	fprintf(stderr, "\tz: timeout (sec) [1-1000]\n\n");
 }
 
