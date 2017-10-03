@@ -21,6 +21,7 @@ $Author$
 #include <sys/msg.h>
 #include <sys/stat.h>
 #define PERM (S_IRUSR | S_IWUSR)
+#define RPERM (S_IRUSR)
 #define KEYPATH "./ipchelper.h"
 #define SHM_ID 7452542
 #define MSG_ID 5879785 
@@ -42,6 +43,7 @@ int initelement(int semid, int semnum, int semval);
 int getsemid(key_t skey, int nsems);
 int getmsgid(key_t mkey);
 int getclockshmid(key_t shmclockkey);
+int getclockshmidreadonly(key_t shmkey);
 oss_clock_t* attachshmclock(int shmid);
 void setsembuf(struct sembuf *s, int n, int op, int flg);
 int sendmessages(int msgid, char** mylist, int lines);

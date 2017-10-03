@@ -57,6 +57,20 @@ int main (int argc, char** argv) {
 		perror("Failed to set up signal handlers");
 		return 1;
 	}
+
+	/***************** Set up shared memory *******/
+	int shmid;
+	oss_clock_t* clock;
+	if ((shmid = getclockshmidreadonly(shmkey)) == -1) {
+		perror("Failed to retreive shared memvory segment.");
+		return 1;
+	}	
+	if ((clock = attachshmclock(shmid)) == (void*)-1) {
+		perror("Failed to attack shared memory.");	
+		return 1;
+	}
+	fprintf(stderr, "%d\t%d\n", clock->sec, clock->nsec);
+
 	/***************** Set up semaphore ************/
 	//int semid;
 	if ((semid = semget(skey, 2, PERM)) == -1) {
@@ -72,7 +86,7 @@ int main (int argc, char** argv) {
 	setsembuf(mutex, 0, -1, 0);
 	setsembuf(mutex+1, 0, 1, 0);
 	setsembuf(signalDad, 1, -1, 0);
-	fprintf(stderr, "im setting up msg que\n.");
+
 	/**************** Set up message queue *********/
 	//mymsg_t mymsg;	
 	int msgid;

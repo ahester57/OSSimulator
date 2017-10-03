@@ -55,6 +55,15 @@ int getclockshmid(key_t shmkey) {
 	return shm_clock_id;
 }
 
+// gets shared memory (read only), returns -1 on error and shmid on success
+int getclockshmidreadonly(key_t shmkey) {
+	int shmid;
+	if ((shmid = shmget(shmkey, sizeof(oss_clock_t), RPERM)) == -1) {
+		return -1;
+	}
+	return shmid;
+}
+
 // attach shared memory segment
 oss_clock_t* attachshmclock(int shmid) {
 	oss_clock_t* clock;

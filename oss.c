@@ -8,9 +8,9 @@ $Author$
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <sys/wait.h>
 #include <sys/shm.h>
-#include <unistd.h>
 #include "ipchelper.h"
 #include "sighandler.h"
 #include "filehelper.h"
@@ -37,7 +37,7 @@ int main (int argc, char** argv) {
 		return 1;
 	}
 
-	/*************** Set up semaphore *************/
+	/*************** Set up shared memory *********/
 	int shmid;
 	oss_clock_t* clock;
 	if ((shmid = getclockshmid(shmkey)) == -1) {
@@ -48,6 +48,8 @@ int main (int argc, char** argv) {
 		perror("Failed to attack shared memory.");	
 		return 1;
 	}
+	clock->sec = 0;
+	clock->nsec = 0;
 
 	/*************** Set up semaphore *************/
 	// semaphore contains 3 sems:
@@ -55,14 +57,12 @@ int main (int argc, char** argv) {
 	// 1 = master knows when done
 	// 2 = for limiting to 19 children at one time
 	int semid;
-	if ((semid = getsemid(skey, 3)) == -1) {
+	if ((semid = getsemid(skey, 2)) == -1) {
 		perror("Failed to create semaphore.");
 		return 1;
 	}	
 	struct sembuf waitfordone[1];
-	struct sembuf birthcontrol[1];
 	setsembuf(waitfordone, 1, 0, 0);
-	setsembuf(birthcontrol, 2, -1, 0);
 	if (initsemaphores(semid) == -1) {
 		perror("Failed to init semaphores.");
 		return 1;
@@ -103,6 +103,7 @@ int main (int argc, char** argv) {
 	}
 	/***************** Child ******************/
 	if (childpid == 0) {
+		sleep(1);
 		// execute child with id
 		execl("./child", "child", palinid, palinindex, (char*)NULL);
 		perror("Exec failure.");
