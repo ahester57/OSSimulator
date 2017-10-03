@@ -22,6 +22,31 @@ int initsharedmemory(int shmid);
 int initsemaphores(int semid);
 
 int main (int argc, char** argv) {
+	/*************** Get options  *****************/
+	char c;
+	while ((c = getopt(argc, argv, "hs:l:t:")) != -1) {
+		switch(c) {
+			case 'h':
+				fprintf(stderr, "Usage: ");
+				fprintf(stderr, "./oss [-s x] [-l filename] ");
+				fprintf(stderr, "[-t z]\nx: max # slave pxs\n");
+				fprintf(stderr, "filename: of log\n");
+				fprintf(stderr, "z: timeout (sec)\n");
+				return 0;
+				break;
+			case 's':
+				break;
+			case 'l':
+				break;
+			case 't':
+				break;
+			case '?':
+				return 1;
+			default:
+				return 1;
+		}
+	}
+
 	// get key from file
 	key_t mkey, skey, shmkey;
 	if (((mkey = ftok(KEYPATH, MSG_ID)) == -1) ||
