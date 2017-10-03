@@ -8,6 +8,7 @@ $Author$
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/shm.h>
@@ -29,32 +30,35 @@ int main (int argc, char** argv) {
 	char c;
 	while ((c = getopt(argc, argv, "hs:l:t:")) != -1) {
 		switch(c) {
-			case 'h':
-				printusage();
-				return 0;
-			case 's':
-				maxslaves = atoi(optarg);	
-				if (maxslaves < 1 || maxslaves > 19) {
-					printusage();
-					return 1;
-				}
-				break;
-			case 'l':
-				fname = optarg;
-				break;
-			case 't':
-				timeout	= atoi(optarg);
-				if (timeout < 1 || timeout > 1000) {
-					printusage();
-					return 1;
-				}
-				break;
-			case '?':
-				fprintf(stderr, "Invalid option %c\n", c);
+		case 'h':
+			printusage();
+			return 0;
+		case 's':
+			maxslaves = atoi(optarg);	
+			if (maxslaves < 1 || maxslaves > 19) {
 				printusage();
 				return 1;
-			default:
+			}
+			break;
+		case 'l':
+			fname = optarg;
+			break;
+		case 't':
+			timeout	= atoi(optarg);
+			if (timeout < 1 || timeout > 1000) {
+				printusage();
 				return 1;
+			}
+			break;
+		case '?':
+		if (optopt == 's' || optopt == 'l' || optopt == 't')
+		fprintf(stderr, "\tOption -%c requires an argument.\n", optopt);
+		else if (isprint(optopt))
+		fprintf(stderr, "\tInvalid option %c\n", optopt);
+		printusage();
+		return 1;
+		default:
+			return 1;
 		}
 	}
 
@@ -216,10 +220,10 @@ int initsemaphores(int semid) {
 }
 
 void printusage() {
-	fprintf(stderr, "Usage: ");
+	fprintf(stderr, "\nUsage: ");
 	fprintf(stderr, "./oss [-s x] [-l filename] ");
 	fprintf(stderr, "[-t z]\n\nx: max # slave pxs [1-19]\n");
 	fprintf(stderr, "filename: of log\n");
-	fprintf(stderr, "z: timeout (sec) [1-1000]\n\n");
+	fprintf(stderr, "z: timeout (sec) [1-1000]\n");
 }
 
