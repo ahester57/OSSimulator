@@ -1,9 +1,15 @@
 /*
-$Id$
-$Date$
-$Revision$
-$Log$
-$Author$
+$Id: oss.c,v 1.2 2017/10/04 07:55:18 o1-hester Exp $
+$Date: 2017/10/04 07:55:18 $
+$Revision: 1.2 $
+$Log: oss.c,v $
+Revision 1.2  2017/10/04 07:55:18  o1-hester
+clock set up
+
+Revision 1.1  2017/10/04 07:45:30  o1-hester
+Initial revision
+
+$Author: o1-hester $
 */
 
 #include <stdio.h>
@@ -16,6 +22,7 @@ $Author$
 #include "sighandler.h"
 #include "filehelper.h"
 
+void updateclock(oss_clock_t* clock);
 int initsighandlers();
 oss_clock_t* initsharedmemory(int shmid);
 int initsemaphores(int semid);
@@ -152,8 +159,11 @@ int main (int argc, char** argv) {
 	}
 	/***************** Parent *****************/
 	if (childpid > 0) {
-		fprintf(stderr, "Filename for log: %s\n", fname);
 		fprintf(stderr, "master: done spawning, waiting for done.\n");	
+		while (clock->sec < 2) {
+			updateclock(clock);			
+		}
+		fprintf(stderr, "Filename for log: %s\n", fname);
 		// Waits for all children to be done
 		while (wait(NULL)) {
 			if (errno == ECHILD)
@@ -168,6 +178,15 @@ int main (int argc, char** argv) {
 	}	
 	return 0;	
 
+}
+
+void updateclock(oss_clock_t* clock) {
+	clock->nsec += 1;
+	if (clock->nsec >= 1000000000) {
+		clock->sec += 1;
+		clock->nsec = 0;
+	}
+	return;
 }
 
 // initialize signal handlers, return -1 on error

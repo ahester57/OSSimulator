@@ -1,9 +1,15 @@
 /*
-$Id$
-$Date$
-$Revision$
-$Log$
-$Author$
+$Id: child.c,v 1.2 2017/10/04 07:55:28 o1-hester Exp $
+$Date: 2017/10/04 07:55:28 $
+$Revision: 1.2 $
+$Log: child.c,v $
+Revision 1.2  2017/10/04 07:55:28  o1-hester
+clock set up
+
+Revision 1.1  2017/10/04 07:44:46  o1-hester
+Initial revision
+
+$Author: o1-hester $
 */
 
 #include <stdio.h>
@@ -61,7 +67,6 @@ int main (int argc, char** argv) {
 		perror("Failed to attack shared memory.");	
 		return 1;
 	}
-	fprintf(stderr, "%d\t%d\n", clock->sec, clock->nsec);
 
 	/***************** Set up semaphore ************/
 	//int semid;
@@ -118,7 +123,9 @@ int main (int argc, char** argv) {
 	fprintf(stderr, "child %ld in crit sec @ %s", (long)getpid(), tme); 
 	sleep(r1);
 
+	fprintf(stderr, "%d\t%d\n", clock->sec, clock->nsec);
 	sleep(r2);
+	fprintf(stderr, "%d\t%d\n", clock->sec, clock->nsec);
 	/*********** Exit section **************/
 	// unlock file
 	if (semop(semid, mutex+1, 1) == -1) { 		

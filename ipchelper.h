@@ -1,9 +1,12 @@
 /*
-$Id$
-$Date$
-$Revision$
-$Log$
-$Author$
+$Id: ipchelper.h,v 1.1 2017/10/04 07:45:11 o1-hester Exp $
+$Date: 2017/10/04 07:45:11 $
+$Revision: 1.1 $
+$Log: ipchelper.h,v $
+Revision 1.1  2017/10/04 07:45:11  o1-hester
+Initial revision
+
+$Author: o1-hester $
 */
 
 #ifndef IPCHELPER_H_

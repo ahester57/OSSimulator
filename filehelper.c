@@ -1,9 +1,12 @@
 /*
-$Id$
-$Date$
-$Revision$
-$Log$
-$Author$
+$Id: filehelper.c,v 1.1 2017/10/04 07:44:59 o1-hester Exp $
+$Date: 2017/10/04 07:44:59 $
+$Revision: 1.1 $
+$Log: filehelper.c,v $
+Revision 1.1  2017/10/04 07:44:59  o1-hester
+Initial revision
+
+$Author: o1-hester $
 */
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,9 +1,12 @@
 /*
-$Id$
-$Date$
-$Revision$
-$Log$
-$Author$
+$Id: filehelper.h,v 1.1 2017/10/04 07:44:59 o1-hester Exp $
+$Date: 2017/10/04 07:44:59 $
+$Revision: 1.1 $
+$Log: filehelper.h,v $
+Revision 1.1  2017/10/04 07:44:59  o1-hester
+Initial revision
+
+$Author: o1-hester $
 */
 #ifndef FILEHELPER_H_
 #define FILEHELPER_H_

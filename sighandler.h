@@ -1,9 +1,12 @@
 /*
-$Id$
-$Date$
-$Revision$
-$Log$
-$Author$
+$Id: sighandler.h,v 1.1 2017/10/04 07:45:49 o1-hester Exp $
+$Date: 2017/10/04 07:45:49 $
+$Revision: 1.1 $
+$Log: sighandler.h,v $
+Revision 1.1  2017/10/04 07:45:49  o1-hester
+Initial revision
+
+$Author: o1-hester $
 */
 
 #ifndef SIGHANDLER_H_
