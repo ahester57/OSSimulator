@@ -1,5 +1,5 @@
 /*
-$Id: child.c,v 1.2 2017/10/04 07:55:28 o1-hester Exp $
+$Id: child.c,v 1.2 2017/10/04 07:55:28 o1-hester Exp o1-hester $
 $Date: 2017/10/04 07:55:28 $
 $Revision: 1.2 $
 $Log: child.c,v $
@@ -28,8 +28,7 @@ $Author: o1-hester $
 int semid;
 struct sembuf mutex[2];
 
-int palindrome(const char* string);
-char* trimstring(const char* string);
+oss_clock_t calcendtime(oss_clock_t* clock, int quantum);
 int initsighandler();
 
 int main (int argc, char** argv) {
@@ -97,8 +96,13 @@ int main (int argc, char** argv) {
 	}
 
 	// send message here
-
 	
+	long pid = (long)getpid();
+	int quantum = rand() % 1000000 + 1;
+	oss_clock_t endtime = calcendtime(clock, quantum);
+	int expiry = 0;
+	fprintf(stderr, "Child %ld end time: %d, %d\n", pid, endtime.sec, endtime.nsec);
+	while (!expiry) {	
 	/************ Entry section ***************/	
 	//fprintf(stderr, "im in entry section\n.");
 	// wait until your turn
@@ -120,9 +124,12 @@ int main (int argc, char** argv) {
 	/************ Critical section ***********/
 	const time_t tma = time(NULL);
 	char* tme = ctime(&tma);
-	fprintf(stderr, "child %ld in crit sec @ %s", (long)getpid(), tme); 
-	sleep(r1);
-
+	fprintf(stderr, "child %ld in crit sec @ %s", pid, tme); 
+	if (endtime.sec <= clock->sec && endtime.nsec <= clock->nsec) {
+		// child's time is up
+		fprintf(stderr, "child %ld expired", pid); 
+		expiry = 1;
+	}
 	fprintf(stderr, "%d\t%d\n", clock->sec, clock->nsec);
 	sleep(r2);
 	fprintf(stderr, "%d\t%d\n", clock->sec, clock->nsec);
@@ -131,7 +138,7 @@ int main (int argc, char** argv) {
 	if (semop(semid, mutex+1, 1) == -1) { 		
 		if (errno == EINVAL) {
 			char* msg = "finished critical section after signal";
-			fprintf(stderr, "child %ld %s\n", (long)getpid(), msg);
+			fprintf(stderr, "child %ld %s\n", pid, msg);
 			return 1;
 		}
 		perror("Failed to unlock semid.");
@@ -142,11 +149,27 @@ int main (int argc, char** argv) {
 		perror("Failed setting signal mask.");
 		return 1;
 	} 
+	} // end while
  	if (errno != 0) {
 		perror("palin uncaught error:");
 		return 1;
 	}
 	return 0;
+}
+
+// calculates the time at which child terminates
+oss_clock_t calcendtime(oss_clock_t* clock, int quantum) {
+	int s = clock->sec;
+	int ns = clock->nsec;
+	ns += quantum;
+	if (ns >= 1000000000) {
+		s++;
+		ns = ns % 1000000000;
+	}
+	oss_clock_t endtime;
+	endtime.sec = s;
+	endtime.nsec = ns;
+	return endtime;	
 }
 
 // initialize signal handler, return -1 on error
