@@ -33,13 +33,10 @@ int initsighandler();
 
 int main (int argc, char** argv) {
 
-	// random r1 r2 for sleep 
-	int r1, r2;
+	// seed random 
 	struct timespec tm;
 	clock_gettime(CLOCK_MONOTONIC, &tm);
 	srand((unsigned)(tm.tv_sec ^ tm.tv_nsec ^ (tm.tv_nsec >> 31)));
-	r1 = rand() % 3;
-	r2 = rand() % 3;
 	
 	// get key from file
 	key_t mkey, skey, shmkey;
@@ -125,14 +122,14 @@ int main (int argc, char** argv) {
 	const time_t tma = time(NULL);
 	char* tme = ctime(&tma);
 	fprintf(stderr, "child %ld in crit sec @ %s", pid, tme); 
-	if (endtime.sec <= clock->sec && endtime.nsec <= clock->nsec) {
+	if ((endtime.sec <= clock->sec && endtime.nsec <= clock->nsec) ||
+		(endtime.sec < clock->sec)) {
 		// child's time is up
-		fprintf(stderr, "child %ld expired", pid); 
+		fprintf(stderr, "child %ld expired.\n", pid); 
 		expiry = 1;
 	}
 	fprintf(stderr, "%d\t%d\n", clock->sec, clock->nsec);
-	sleep(r2);
-	fprintf(stderr, "%d\t%d\n", clock->sec, clock->nsec);
+	//sleep(r2);
 	/*********** Exit section **************/
 	// unlock file
 	if (semop(semid, mutex+1, 1) == -1) { 		

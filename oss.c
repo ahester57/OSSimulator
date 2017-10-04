@@ -1,5 +1,5 @@
 /*
-$Id: oss.c,v 1.2 2017/10/04 07:55:18 o1-hester Exp $
+$Id: oss.c,v 1.2 2017/10/04 07:55:18 o1-hester Exp o1-hester $
 $Date: 2017/10/04 07:55:18 $
 $Revision: 1.2 $
 $Log: oss.c,v $
@@ -151,7 +151,7 @@ int main (int argc, char** argv) {
 	}
 	/***************** Child ******************/
 	if (childpid == 0) {
-		sleep(1);
+		//sleep(1);
 		// execute child with id
 		execl("./child", "child", (char*)NULL);
 		perror("Exec failure.");
@@ -163,6 +163,7 @@ int main (int argc, char** argv) {
 		while (clock->sec < 2) {
 			updateclock(clock);			
 		}
+		fprintf(stderr, "Internal clock reached 2s.\n");
 		fprintf(stderr, "Filename for log: %s\n", fname);
 		// Waits for all children to be done
 		while (wait(NULL)) {
