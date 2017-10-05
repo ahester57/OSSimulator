@@ -11,19 +11,21 @@ make
 ./oss  
 ```
 
-Uses message queues to talk to children.  
+Keeps track of an internal system clock in shared memory.  
+
+Child processes use message queues to talk to master.  
 Messages contain:
 
 	* msec := seconds passed  
 	* mnsec := nanoseconds passed 
 
-Protects each child's critical section (write to file) with semaphores.  
+Protects child's critical section (read from shared memory) with semaphores.  
 Semaphores to control:  
 
 	* Locking file I/O  
 	* Limiting max # of processes   
 
-Utilizes signal handlers to properly clean up when receiving `SIGINT` from `Ctrl^C`.  
+Utilizes signal handlers to properly clean up when receiving `SIGINT` from `Ctrl^C` or `SIGALRM` on timeout.  
 Child blocks signals during critical section, exits after with a trap.  
 
 	* Child processes exit if not in critical section  

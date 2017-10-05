@@ -27,9 +27,18 @@ int initsighandlers();
 oss_clock_t* initsharedmemory(int shmid);
 int initsemaphores(int semid);
 void printusage();
+void printopterr(char optopt);
 
-int main (int argc, char** argv) {
+// oss main. spawns a number of children that do some stuff
+int
+main (int argc, char** argv)
+{
 	/*************** Get options  *****************/
+	// use getopt_long for long-named options
+	// --quiet/silent
+	// --help/version
+	// --timeout/FILENAME
+	// fatal error on malloc return NULL
 	int maxslaves = 5;
 	int timeout = 20;
 	char* fname = "default.log";
@@ -42,6 +51,7 @@ int main (int argc, char** argv) {
 			return 0;
 		case 's':
 			maxslaves = atoi(optarg);	
+			// increase this when you implement child limiter 
 			if (maxslaves < 1 || maxslaves > 19) {
 				fprintf(stderr, "\tx must be from 1-19.\n");
 				printusage();
@@ -64,11 +74,8 @@ int main (int argc, char** argv) {
 			}
 			break;
 		case '?':
-		if (optopt == 's' || optopt == 'l' || optopt == 't')
-		fprintf(stderr, "\tOption -%c requires an argument.\n", optopt);
-		else if (isprint(optopt))
-		fprintf(stderr, "\tInvalid option %c\n", optopt);
-		printusage();
+			printopterr(optopt);
+			printusage();
 		return 1;
 		default:
 			return 1;
@@ -106,15 +113,14 @@ int main (int argc, char** argv) {
 	/*************** Set up semaphore *************/
 	// semaphore contains 3 sems:
 	// 0 = file i/o lock
-	// 1 = master knows when done
-	// 2 = for limiting to 19 children at one time
+	// 1 = for limiting to 19 children at one time
 	int semid;
 	if ((semid = getsemid(skey, 2)) == -1) {
 		perror("Failed to create semaphore.");
 		return 1;
 	}	
-	struct sembuf waitfordone[1];
-	setsembuf(waitfordone, 1, 0, 0);
+	struct sembuf limitchildren[1];
+	setsembuf(limitchildren, 1, -1, 0);
 	if (initsemaphores(semid) == -1) {
 		perror("Failed to init semaphores.");
 		return 1;
@@ -151,8 +157,7 @@ int main (int argc, char** argv) {
 	}
 	/***************** Child ******************/
 	if (childpid == 0) {
-		//sleep(1);
-		// execute child with id
+		// execute child
 		execl("./child", "child", (char*)NULL);
 		perror("Exec failure.");
 		return 1; // if error
@@ -181,8 +186,11 @@ int main (int argc, char** argv) {
 
 }
 
-void updateclock(oss_clock_t* clock) {
-	clock->nsec += 1;
+// updates internal system clock
+void
+updateclock(oss_clock_t* clock)
+{
+	clock->nsec += 10;
 	if (clock->nsec >= 1000000000) {
 		clock->sec += 1;
 		clock->nsec = 0;
@@ -191,7 +199,9 @@ void updateclock(oss_clock_t* clock) {
 }
 
 // initialize signal handlers, return -1 on error
-int initsighandlers() {
+int
+initsighandlers()
+{
 	struct sigaction newact = {{0}};
 	struct sigaction timer = {{0}};
 	timer.sa_handler = handletimer;
@@ -212,7 +222,9 @@ int initsighandlers() {
 }
 
 // initialize shared memory, return -1 on error
-oss_clock_t* initsharedmemory(int shmid) {
+oss_clock_t*
+initsharedmemory(int shmid)
+{
 	oss_clock_t* clock;
 	if ((clock = attachshmclock(shmid)) == (void*)-1) {
 		perror("Failed to attack shared memory.");	
@@ -224,7 +236,9 @@ oss_clock_t* initsharedmemory(int shmid) {
 }
 
 // initialize semaphores, return -1 on error
-int initsemaphores(int semid) {
+int
+initsemaphores(int semid)
+{
 	// set up file i/o lock
 	if (initelement(semid, 0, 1) == -1) {
 		if (semctl(semid, 0, IPC_RMID) == -1)
@@ -240,11 +254,26 @@ int initsemaphores(int semid) {
 	return 0;
 }
 
-void printusage() {
+// when the user dun goofs
+void
+printusage()
+{
 	fprintf(stderr, "\n\tUsage: ");
 	fprintf(stderr, "./oss [-s x] [-l filename] ");
 	fprintf(stderr, "[-t z]\n\n\tx: max # slave pxs [1-19]\n");
 	fprintf(stderr, "\tfilename: of log\n");
 	fprintf(stderr, "\tz: timeout (sec) [1-1000]\n\n");
+	return;
+}
+
+// when the user dun goofs
+void
+printopterr(char optopt)
+{
+	if (optopt == 's' || optopt == 'l' || optopt == 't')
+		fprintf(stderr, "\tOption -%c requires an argument.\n", optopt);
+	else if (isprint(optopt))
+		fprintf(stderr, "\tInvalid option %c\n", optopt);
+	return;
 }
 

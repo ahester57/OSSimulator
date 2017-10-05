@@ -1,5 +1,5 @@
 /*
-$Id: ipchelper.c,v 1.1 2017/10/04 07:45:11 o1-hester Exp $
+$Id: ipchelper.c,v 1.1 2017/10/04 07:45:11 o1-hester Exp o1-hester $
 $Date: 2017/10/04 07:45:11 $
 $Revision: 1.1 $
 $Log: ipchelper.c,v $
@@ -11,6 +11,7 @@ $Author: o1-hester $
 
 #include "ipchelper.h"
 
+// id's and addr of shared memory and whatnot
 static int sem_id;
 static int msg_id;
 static int shm_clock_id;
@@ -18,7 +19,9 @@ static oss_clock_t* shm_addr;
 
 // Initializes semaphore with id, num, and value
 // returns -1 on failure
-int initelement(int semid, int semnum, int semval) {
+int
+initelement(int semid, int semnum, int semval)
+{
 	union semun {
 		int val;
 		struct semid_ds *buf;
@@ -29,7 +32,9 @@ int initelement(int semid, int semnum, int semval) {
 }
 
 // creates semaphores, returns -1 on error and semid on success
-int getsemid(key_t skey, int nsems) {
+int
+getsemid(key_t skey, int nsems)
+{
 	int semid;
 	if ((semid = semget(skey, nsems, PERM | IPC_CREAT)) == -1) {
 		return -1;
@@ -39,7 +44,9 @@ int getsemid(key_t skey, int nsems) {
 }
 
 // creates message queue, returns -1 on error and msgid on success
-int getmsgid(key_t mkey) {
+int
+getmsgid(key_t mkey)
+{
 	int msgid;
 	if ((msgid = msgget(mkey, PERM | IPC_CREAT)) == -1) {
 		return -1;
@@ -49,7 +56,9 @@ int getmsgid(key_t mkey) {
 }
 
 // creates shared memory, returns -1 on error and shmid on success
-int getclockshmid(key_t shmkey) {
+int
+getclockshmid(key_t shmkey)
+{
 	int shmid;
 	if ((shmid = shmget(shmkey, 2*sizeof(int), PERM | IPC_CREAT)) == -1) {
 		return -1;
@@ -59,7 +68,9 @@ int getclockshmid(key_t shmkey) {
 }
 
 // gets shared memory (read only), returns -1 on error and shmid on success
-int getclockshmidreadonly(key_t shmkey) {
+int
+getclockshmidreadonly(key_t shmkey)
+{
 	int shmid;
 	if ((shmid = shmget(shmkey, sizeof(oss_clock_t), RPERM)) == -1) {
 		return -1;
@@ -68,7 +79,9 @@ int getclockshmidreadonly(key_t shmkey) {
 }
 
 // attach shared memory segment
-oss_clock_t* attachshmclock(int shmid) {
+oss_clock_t*
+attachshmclock(int shmid)
+{
 	oss_clock_t* clock;
 	if ((clock = (oss_clock_t*)shmat(shmid, NULL, 0)) == (void*)-1) {
 		return (void*)-1;
@@ -78,7 +91,9 @@ oss_clock_t* attachshmclock(int shmid) {
 }
 
 //set up a semaphore operation
-void setsembuf(struct sembuf *s, int n, int op, int flg) {
+void
+setsembuf(struct sembuf *s, int n, int op, int flg)
+{
 	s->sem_num = (short)n;
 	s->sem_op = (short)op;
 	s->sem_flg = (short)flg;
@@ -87,7 +102,9 @@ void setsembuf(struct sembuf *s, int n, int op, int flg) {
 
 
 // send messages to msgqueue, return -1 on error
-int sendmessages(int msgid, char** mylist, int lines) {
+int
+sendmessages(int msgid, char** mylist, int lines)
+{
 	int j;
 	mymsg_t* mymsg;
 	for (j = 0; j < lines; j++) {
@@ -107,12 +124,16 @@ int sendmessages(int msgid, char** mylist, int lines) {
 }
 
 // destroy message queue segment
-int removeMsgQueue(int msgid) {
+int
+removeMsgQueue(int msgid)
+{
 	return msgctl(msgid, IPC_RMID, NULL);
 }
 
 // Remove shared memory segments
-int removeshmem(int msgid, int semid, int shmid, void* shmaddr) {
+int
+removeshmem(int msgid, int semid, int shmid, void* shmaddr)
+{
 	int error = 0;
 	if (msgid == -1)
 		msgid = msg_id;
@@ -143,8 +164,10 @@ int removeshmem(int msgid, int semid, int shmid, void* shmaddr) {
 }
 
 // Detaches and removes shared memory
-int detachandremove(int shmid, void* shmaddr) {
-	 int error = 0;
+int
+detachandremove(int shmid, void* shmaddr)
+{
+	int error = 0;
 	if (shmdt(shmaddr) == -1)
 		error = errno;
 	if ((shmctl(shmid, IPC_RMID, NULL) == -1) && !error)

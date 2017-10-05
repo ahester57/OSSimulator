@@ -24,19 +24,16 @@ $Author: o1-hester $
 #define PALIN "./palin.out"
 #define NOPALIN "./nopalin.out"
 
-//long masterpid;
 int semid;
 struct sembuf mutex[2];
 
 oss_clock_t calcendtime(oss_clock_t* clock, int quantum);
 int initsighandler();
 
-int main (int argc, char** argv) {
-
-	// seed random 
-	struct timespec tm;
-	clock_gettime(CLOCK_MONOTONIC, &tm);
-	srand((unsigned)(tm.tv_sec ^ tm.tv_nsec ^ (tm.tv_nsec >> 31)));
+// explain
+int
+main (int argc, char** argv)
+{
 	
 	// get key from file
 	key_t mkey, skey, shmkey;
@@ -92,18 +89,27 @@ int main (int argc, char** argv) {
 		return 1;
 	}
 
-	// send message here
 	
+	// seed random 
+	struct timespec tm;
+	clock_gettime(CLOCK_MONOTONIC, &tm);
+	srand((unsigned)(tm.tv_sec ^ tm.tv_nsec ^ (tm.tv_nsec >> 31)));
+
+	// initialize all the following stuff
 	long pid = (long)getpid();
 	int quantum = rand() % 1000000 + 1;
 	oss_clock_t endtime = calcendtime(clock, quantum);
-	int expiry = 0;
-	fprintf(stderr, "Child %ld end time: %d, %d\n", pid, endtime.sec, endtime.nsec);
-	while (!expiry) {	
+	int expiry = 0; // flag for done
+	fprintf(stderr, "%ld endtime:%d, %d\n", pid, endtime.sec, endtime.nsec);
+	
+	// begin looping over critical section
+	// where each child checks the clock in shmem
+	while (!expiry)
+	{	
 	/************ Entry section ***************/	
 	//fprintf(stderr, "im in entry section\n.");
 	// wait until your turn
-	if (semop(semid, mutex, 1) == -1){
+	if (semop(semid, mutex, 1) == -1) {
 		if (errno == EIDRM) {
 			fprintf(stderr, "child interrupted.\n");
 			return 1;
@@ -119,17 +125,17 @@ int main (int argc, char** argv) {
 		return 1;
 	} 
 	/************ Critical section ***********/
-	const time_t tma = time(NULL);
-	char* tme = ctime(&tma);
-	fprintf(stderr, "child %ld in crit sec @ %s", pid, tme); 
-	if ((endtime.sec <= clock->sec && endtime.nsec <= clock->nsec) ||
-		(endtime.sec < clock->sec)) {
+	//const time_t tma = time(NULL);
+	//char* tme = ctime(&tma);
+	//fprintf(stderr, "child %ld in crit sec @ %s", pid, tme); 
+	if ((endtime.sec <= clock->sec && endtime.nsec <= clock->nsec)
+		|| (endtime.sec < clock->sec)) {
 		// child's time is up
 		fprintf(stderr, "child %ld expired.\n", pid); 
 		expiry = 1;
+		// send message here
 	}
-	fprintf(stderr, "%d\t%d\n", clock->sec, clock->nsec);
-	//sleep(r2);
+	//fprintf(stderr, "%d\t%d\n", clock->sec, clock->nsec);
 	/*********** Exit section **************/
 	// unlock file
 	if (semop(semid, mutex+1, 1) == -1) { 		
@@ -147,6 +153,7 @@ int main (int argc, char** argv) {
 		return 1;
 	} 
 	} // end while
+
  	if (errno != 0) {
 		perror("palin uncaught error:");
 		return 1;
@@ -155,7 +162,9 @@ int main (int argc, char** argv) {
 }
 
 // calculates the time at which child terminates
-oss_clock_t calcendtime(oss_clock_t* clock, int quantum) {
+oss_clock_t
+calcendtime(oss_clock_t* clock, int quantum)
+{
 	int s = clock->sec;
 	int ns = clock->nsec;
 	ns += quantum;
@@ -170,7 +179,9 @@ oss_clock_t calcendtime(oss_clock_t* clock, int quantum) {
 }
 
 // initialize signal handler, return -1 on error
-int initsighandler() {
+int
+initsighandler()
+{
 	struct sigaction act = {{0}};
 	act.sa_handler = catchchildintr;
 	act.sa_flags = 0;

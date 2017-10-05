@@ -1,5 +1,5 @@
 /*
-$Id: sighandler.c,v 1.1 2017/10/04 07:45:49 o1-hester Exp $
+$Id: sighandler.c,v 1.1 2017/10/04 07:45:49 o1-hester Exp o1-hester $
 $Date: 2017/10/04 07:45:49 $
 $Revision: 1.1 $
 $Log: sighandler.c,v $
@@ -14,10 +14,14 @@ $Author: o1-hester $
 #include "ipchelper.h"
 #include "sighandler.h"
 
+// whether the alarm occured, for outputting why its over
 static int alarmhappened = 0;
+
 /************************ Signal Handler ********************/
 // Handler for SIGINT
-void catchctrlc(int signo) {
+void
+catchctrlc(int signo)
+{
 	alarm(0); // cancel alarm
 	if (alarmhappened == 0) {
 		char* msg = "Ctrl^C pressed, killing children.\n";
@@ -35,7 +39,9 @@ void catchctrlc(int signo) {
 }
 
 // Handler for SIGALRM
-void handletimer(int signo) {
+void
+handletimer(int signo)
+{
 	alarmhappened = 1;
 	char* msg = "Alarm occured. Time to kill children.\n";
 	write(STDERR_FILENO, msg, 39);
@@ -45,7 +51,9 @@ void handletimer(int signo) {
 }
 
 // handler for palin SIGINT
-void catchchildintr(int signo) {
+void
+catchchildintr(int signo)
+{
 	char msg[] = "Child interrupted. Goodbye.\n";
 	write(STDERR_FILENO, msg, 32);
 	exit(1);

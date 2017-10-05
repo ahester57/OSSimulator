@@ -1,5 +1,5 @@
 /*
-$Id: filehelper.c,v 1.1 2017/10/04 07:44:59 o1-hester Exp $
+$Id: filehelper.c,v 1.1 2017/10/04 07:44:59 o1-hester Exp o1-hester $
 $Date: 2017/10/04 07:44:59 $
 $Revision: 1.1 $
 $Log: filehelper.c,v $
@@ -13,7 +13,9 @@ $Author: o1-hester $
 #include "filehelper.h"
 
 // Set a char** to a list of strings (by line) from a file
-int setArrayFromFile(const char* filename, char** list) {
+int
+setArrayFromFile(const char* filename, char** list)
+{
 	FILE* fp;
 	fp = fopen(filename, "r");
 	if (fp == NULL) {
@@ -21,6 +23,8 @@ int setArrayFromFile(const char* filename, char** list) {
 	}
 	int n = 0;
 	char* line = malloc(LINESIZE*sizeof(char));
+	if (line == NULL)
+		return -1;
 	rewind(fp);
 	while (fgets(line, LINESIZE, (FILE*)fp)) {
 		list[n] = malloc(LINESIZE*sizeof(char));
@@ -37,7 +41,9 @@ int setArrayFromFile(const char* filename, char** list) {
 }
 
 // Count how  many lines a file has
-int countLines(const char* filename) {
+int
+countLines(const char* filename)
+{
 	FILE* fp;
 	fp = fopen(filename, "r");
 	if (fp == NULL) {
@@ -45,6 +51,8 @@ int countLines(const char* filename) {
 	}
 	int n = 0;
 	char* line = malloc(LINESIZE*sizeof(char));
+	if (line == NULL)
+		return -1;
 	rewind(fp);
 	while (fgets(line, LINESIZE, (FILE*)fp)) {
 		n++;
@@ -57,7 +65,9 @@ int countLines(const char* filename) {
 }
 
 // writes to file, returns -1 on error, 0 otherwise
-int writeToFile(const char* filename, long pid, int index, const char* text) {
+int
+writeToFile(const char* filename, long pid, int index, const char* text)
+{
 	FILE* fp;
 	fp = fopen(filename, "a+");
 	if (fp == NULL) {
