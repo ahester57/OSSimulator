@@ -128,10 +128,11 @@ sendmessage(int msgid, long pid, oss_clock_t endtime, oss_clock_t* clock)
 	mymsg->mtype = 1;
 	memcpy(mymsg->mtext, t_msg, LINESIZE);
 	fprintf(stderr, "%s\n", t_msg);
-	free(t_msg);
-	if (msgsnd(msgid, mymsg, LINESIZE, 0) == -1) {
+	if (msgsnd(msgid, mymsg, sizeof(mymsg_t), 0) == -1) {
+		free(t_msg);
 		return -1;
 	}	
+	free(t_msg);
 	return 0;
 }
 

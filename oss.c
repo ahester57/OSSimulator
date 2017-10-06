@@ -18,6 +18,9 @@ $Author: o1-hester $
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/shm.h>
+#include <sys/msg.h>
+#include <sys/ipc.h>
+#include <sys/types.h>
 #include "ipchelper.h"
 #include "sighandler.h"
 #include "filehelper.h"
@@ -165,8 +168,28 @@ main (int argc, char** argv)
 	/***************** Parent *****************/
 	if (childpid > 0) {
 		fprintf(stderr, "master: done spawning, waiting for done.\n");	
+		mymsg_t msg;
+		struct msqid_ds buf;
+		ssize_t sz;
 		while (clock->sec < 2) {
+			errno = 0;
 			updateclock(clock);			
+			int rc = msgctl(msgid, IPC_STAT, &buf);		
+			if (rc == -1) {
+				perror("Message failure.");
+				return 1;
+			}
+			int mcount = (int)(buf.msg_qnum);
+			if (mcount > 0) {
+			sz = msgrcv(msgid, &msg, sizeof(mymsg_t),0,IPC_NOWAIT);
+			if (sz == (ssize_t)-1 && errno != ENOMSG) {
+				perror("Message receive error: ");
+				return 1;
+			}	
+			if (sz != (ssize_t)-1) {
+				fprintf(stderr, "Master: %s\n", msg.mtext);
+			}
+			}
 		}
 		fprintf(stderr, "Internal clock reached 2s.\n");
 		fprintf(stderr, "Filename for log: %s\n", fname);
@@ -190,11 +213,12 @@ main (int argc, char** argv)
 void
 updateclock(oss_clock_t* clock)
 {
-	clock->nsec += 10;
+	clock->nsec += 200;
 	if (clock->nsec >= 1000000000) {
 		clock->sec += 1;
 		clock->nsec = 0;
 	}
+	//fprintf(stderr, "%d.%d\n", clock->sec, clock->nsec);
 	return;
 }
 
