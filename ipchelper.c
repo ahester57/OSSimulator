@@ -136,6 +136,19 @@ sendmessage(int msgid, long pid, oss_clock_t endtime, oss_clock_t* clock)
 	return 0;
 }
 
+// gets next message in queue, returns size or -1 on failure
+ssize_t
+getmessage(int msgid, mymsg_t* msg)
+{
+	ssize_t sz;
+	sz = msgrcv(msgid, msg, sizeof(mymsg_t),0,IPC_NOWAIT);
+	if (sz == (ssize_t)-1 && errno != ENOMSG) {
+		perror("Message receive error: ");
+		return (ssize_t)-1;
+	}	
+	return sz;
+}
+
 // destroy message queue segment
 int
 removeMsgQueue(int msgid)

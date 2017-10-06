@@ -171,6 +171,11 @@ main (int argc, char** argv)
 		mymsg_t msg;
 		struct msqid_ds buf;
 		ssize_t sz;
+		FILE* logf = fopen(fname, "w+");
+		if (logf == NULL) {
+			perror("Could not open log file:");
+			return 1;
+		}
 		while (clock->sec < 2) {
 			errno = 0;
 			updateclock(clock);			
@@ -181,16 +186,14 @@ main (int argc, char** argv)
 			}
 			int mcount = (int)(buf.msg_qnum);
 			if (mcount > 0) {
-			sz = msgrcv(msgid, &msg, sizeof(mymsg_t),0,IPC_NOWAIT);
-			if (sz == (ssize_t)-1 && errno != ENOMSG) {
-				perror("Message receive error: ");
-				return 1;
-			}	
-			if (sz != (ssize_t)-1) {
-				fprintf(stderr, "Master: %s\n", msg.mtext);
-			}
+				sz = getmessage(msgid, &msg);
+				if (sz != (ssize_t)-1) {
+					char* m0 = "Master: ";
+					fprintf(logf, "%s%s\n",m0,msg.mtext);
+				}
 			}
 		}
+		fclose(logf);
 		fprintf(stderr, "Internal clock reached 2s.\n");
 		fprintf(stderr, "Filename for log: %s\n", fname);
 		// Waits for all children to be done
@@ -203,6 +206,7 @@ main (int argc, char** argv)
 			perror("Failed to remove shared memory.");
 			return 1;
 		}
+		
 		fprintf(stderr, "Done. %ld\n", (long)getpgid(getpid()));
 	}	
 	return 0;	
