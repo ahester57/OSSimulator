@@ -1,5 +1,5 @@
 /*
-$Id: ipchelper.h,v 1.1 2017/10/04 07:45:11 o1-hester Exp $
+$Id: ipchelper.h,v 1.1 2017/10/04 07:45:11 o1-hester Exp o1-hester $
 $Date: 2017/10/04 07:45:11 $
 $Revision: 1.1 $
 $Log: ipchelper.h,v $
@@ -33,8 +33,8 @@ $Author: o1-hester $
 
 // for message queues
 typedef struct {
-	long mType;
-	char mText[LINESIZE];
+	int mtype;
+	char mtext[LINESIZE];
 } mymsg_t;
 
 typedef struct {
@@ -49,7 +49,7 @@ int getclockshmid(key_t shmclockkey);
 int getclockshmidreadonly(key_t shmkey);
 oss_clock_t* attachshmclock(int shmid);
 void setsembuf(struct sembuf *s, int n, int op, int flg);
-int sendmessages(int msgid, char** mylist, int lines);
+int sendmessage(int msgid, long pid, oss_clock_t endtime, oss_clock_t* clock);
 int removeMsgQueue(int msgid);
 void setmsgid(int msgid);
 int removeshmem(int msgid, int semid, int shmid, void* shmaddr);

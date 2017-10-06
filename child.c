@@ -125,15 +125,13 @@ main (int argc, char** argv)
 		return 1;
 	} 
 	/************ Critical section ***********/
-	//const time_t tma = time(NULL);
-	//char* tme = ctime(&tma);
 	//fprintf(stderr, "child %ld in crit sec @ %s", pid, tme); 
 	if ((endtime.sec <= clock->sec && endtime.nsec <= clock->nsec)
 		|| (endtime.sec < clock->sec)) {
 		// child's time is up
-		fprintf(stderr, "child %ld expired.\n", pid); 
+		//fprintf(stderr, "child %ld expired.\n", pid); 
 		expiry = 1;
-		// send message here
+		sendmessage(msgid, pid, endtime, clock);
 	}
 	//fprintf(stderr, "%d\t%d\n", clock->sec, clock->nsec);
 	/*********** Exit section **************/

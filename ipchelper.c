@@ -103,23 +103,35 @@ setsembuf(struct sembuf *s, int n, int op, int flg)
 
 // send messages to msgqueue, return -1 on error
 int
-sendmessages(int msgid, char** mylist, int lines)
+sendmessage(int msgid, long pid, oss_clock_t endtime, oss_clock_t* clock)
 {
-	int j;
 	mymsg_t* mymsg;
-	for (j = 0; j < lines; j++) {
-		if ((mymsg = (mymsg_t*) malloc(sizeof(mymsg_t))) == NULL) {
-			return -1;
-		}
-		// mType is index of string
-		// mText is string
-		// child finds string using mType
-		mymsg->mType = j+1;	// because mType cannot be 0
-		memcpy(mymsg->mText, mylist[j], LINESIZE);
-		if (msgsnd(msgid, mymsg, LINESIZE, 0) == -1) {
-			return -1;
-		}	
+	if ((mymsg = (mymsg_t*) malloc(sizeof(mymsg_t))) == NULL) {
+		return -1;
 	}
+	// ti is current time
+	// eti is child time 
+	int t0 = clock->sec;
+	int t1 = clock->nsec;
+	int et0 = endtime.sec;
+	int et1 = endtime.nsec;
+	// strings and what not
+	char* m0 = "Child ";
+	char* m1 = " is terminating at time ";
+	char* m2 = " because it reached ";
+	char* m3 = " in slave";
+	char* t_msg = (char*)malloc(LINESIZE*sizeof(char));
+	if (t_msg == NULL) {
+		return -1;
+	}
+	sprintf(t_msg,"%s%ld%s%d.%d%s%d.%d%s",m0,pid,m1,t0,t1,m2,et0,et1,m3);
+	mymsg->mtype = 1;
+	memcpy(mymsg->mtext, t_msg, LINESIZE);
+	fprintf(stderr, "%s\n", t_msg);
+	free(t_msg);
+	if (msgsnd(msgid, mymsg, LINESIZE, 0) == -1) {
+		return -1;
+	}	
 	return 0;
 }
 
