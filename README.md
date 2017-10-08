@@ -16,8 +16,8 @@ Keeps track of an internal system clock in shared memory.
 Child processes use message queues to talk to master.  
 Messages contain:
 
-	* msec := seconds passed  
-	* mnsec := nanoseconds passed 
+	* mtype := message type (1 for success) 
+	* mtext := contains time of termination and time it expired
 
 Protects child's critical section (read from shared memory) with semaphores.  
 Semaphores to control:  

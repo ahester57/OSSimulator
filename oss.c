@@ -25,10 +25,12 @@ $Author: o1-hester $
 #include "sighandler.h"
 #include "filehelper.h"
 
+long spawnchild();
 void updateclock(oss_clock_t* clock);
 int initsighandlers();
 oss_clock_t* initsharedmemory(int shmid);
 int initsemaphores(int semid);
+void logchildcreate(FILE* logf, long childpid);
 void printusage();
 void printopterr(char optopt);
 
@@ -55,8 +57,9 @@ main (int argc, char** argv)
 		case 's':
 			maxslaves = atoi(optarg);	
 			// increase this when you implement child limiter 
-			if (maxslaves < 1 || maxslaves > 19) {
-				fprintf(stderr, "\tx must be from 1-19.\n");
+			if (maxslaves < 1 || maxslaves > 100) {
+				char* m0 = "x must be from 1-100.";
+				fprintf(stderr, "\t%s\n", m0);
 				printusage();
 				return 1;
 			}
@@ -66,12 +69,15 @@ main (int argc, char** argv)
 				fname = optarg;
 				break;
 			}
-			fprintf(stderr, "\tFilename must start with letter.\n");
+			char* m0 = "Filename must start with a letter.";
+			fprintf(stderr, "\t%s\n", m0);
+			printusage();
 			return 1;	
 		case 't':
 			timeout	= atoi(optarg);
 			if (timeout < 1 || timeout > 1000) {
-				fprintf(stderr, "\tz must be from 1-1000.\n");
+				char* m0 = "z must be from 1-1000.";
+				fprintf(stderr,"\t%s\n", m0);
 				printusage();
 				return 1;
 			}
@@ -136,66 +142,79 @@ main (int argc, char** argv)
 		return 1;
 	}
 
+	// Open log file
+	FILE* logf = fopen(fname, "w+");
+	if (logf == NULL) {
+		perror("Could not open log file:");
+		return 1;
+	}
+
 	/****************** Spawn Children ***********/
 	// make child
-	// char[]'s for sending id and index to child process
-	long childpid;
-	int j = 0;
-	while (j < maxslaves) {
-		if ((childpid = fork()) <= 0) {
-			// set id and msg index
-			break;
-		}  
-		fprintf(stderr, "... child %ld spawned.\n", childpid);
-		if (childpid != -1)	
-			j++;
+	long cpid;
+	int childcount = 0;
+	int term = (maxslaves < 19) ? maxslaves : 19;
+	while (childcount < term) {
+		// spawn new child
+		// child executes child program
+		cpid = spawnchild();
+		if (cpid == -1)	
+			break; // failed to create child
+
+		logchildcreate(logf, cpid);
+		childcount++;
 	}
+	
 	// If master fails at spawning children
-	if (childpid == -1) {
+	if (cpid == -1) {
 		perror("Failed to create child.");
 		if (removeshmem(msgid, semid, shmid, clock) == -1) {
 			perror("failed to remove shared mem segment");
 			return 1;
 		}
 	}
-	/***************** Child ******************/
-	if (childpid == 0) {
-		// execute child
-		execl("./child", "child", (char*)NULL);
-		perror("Exec failure.");
-		return 1; // if error
-	}
+
+	
+	int numlivechild = childcount;
 	/***************** Parent *****************/
-	if (childpid > 0) {
-		fprintf(stderr, "master: done spawning, waiting for done.\n");	
+	if (cpid > 0) {
+		fprintf(stderr, "OSS: In parent code block.\n");
+		fprintf(logf, "OSS: In parent code block.\n");
 		mymsg_t msg;
 		struct msqid_ds buf;
-		ssize_t sz;
-		FILE* logf = fopen(fname, "w+");
-		if (logf == NULL) {
-			perror("Could not open log file:");
-			return 1;
-		}
+		// enter clock increment loop
 		while (clock->sec < 2) {
-			errno = 0;
+			// update the system clock
 			updateclock(clock);			
-			int rc = msgctl(msgid, IPC_STAT, &buf);		
+			// rc, mcount get number of messages in queue
+			int rc = msgctl(msgid, IPC_STAT, &buf);	
 			if (rc == -1) {
 				perror("Message failure.");
 				return 1;
 			}
 			int mcount = (int)(buf.msg_qnum);
 			if (mcount > 0) {
-				sz = getmessage(msgid, &msg);
+				ssize_t sz = getmessage(msgid, &msg);
 				if (sz != (ssize_t)-1) {
-					char* m0 = "Master: ";
-					fprintf(logf, "%s%s\n",m0,msg.mtext);
+					char* m0 = "OSS: ";
+					char* m1 = msg.mtext;
+					fprintf(logf, "%s%s\n",m0,m1);
+					if (childcount > 19)
+						wait(NULL);
+					numlivechild--;
+					if (childcount < maxslaves) {
+						// spawn new child
+						cpid = spawnchild();
+						logchildcreate(logf, cpid);
+						childcount++;
+						numlivechild++;
+					}
 				}
 			}
 		}
-		fclose(logf);
 		fprintf(stderr, "Internal clock reached 2s.\n");
 		fprintf(stderr, "Filename for log: %s\n", fname);
+		fclose(logf);
 		// Waits for all children to be done
 		while (wait(NULL)) {
 			if (errno == ECHILD)
@@ -213,11 +232,28 @@ main (int argc, char** argv)
 
 }
 
+// spawns a new child, return childpid, -1 on error
+long
+spawnchild()
+{
+	long childpid = fork();
+	/***************** Child ******************/
+	if (childpid <= 0) {
+		// execute child
+		execl("./child", "child", (char*)NULL);
+		perror("Exec failure.");
+		return -1; // if error
+	}
+	// parent
+	return childpid;
+}
+
+
 // updates internal system clock
 void
 updateclock(oss_clock_t* clock)
 {
-	clock->nsec += 200;
+	clock->nsec += 100;
 	if (clock->nsec >= 1000000000) {
 		clock->sec += 1;
 		clock->nsec = 0;
@@ -282,13 +318,22 @@ initsemaphores(int semid)
 	return 0;
 }
 
+// log child creation
+void
+logchildcreate(FILE* logf, long childpid)
+{
+	fprintf(stderr, "... child %ld spawned.\n", childpid);
+	fprintf(logf, "... child %ld spawned.\n", childpid);
+	return;
+}
+
 // when the user dun goofs
 void
 printusage()
 {
 	fprintf(stderr, "\n\tUsage: ");
 	fprintf(stderr, "./oss [-s x] [-l filename] ");
-	fprintf(stderr, "[-t z]\n\n\tx: max # slave pxs [1-19]\n");
+	fprintf(stderr, "[-t z]\n\n\tx: max # slave pxs [1-100]\n");
 	fprintf(stderr, "\tfilename: of log\n");
 	fprintf(stderr, "\tz: timeout (sec) [1-1000]\n\n");
 	return;

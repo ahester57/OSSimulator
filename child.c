@@ -98,9 +98,9 @@ main (int argc, char** argv)
 	// initialize all the following stuff
 	long pid = (long)getpid();
 	int quantum = rand() % 1000000 + 1;
-	oss_clock_t endtime = calcendtime(clock, quantum);
+	oss_clock_t endt = calcendtime(clock, quantum);
 	int expiry = 0; // flag for done
-	fprintf(stderr, "%ld endtime:%d, %d\n", pid, endtime.sec, endtime.nsec);
+	fprintf(stderr, "%ld endtime:%d, %d\n", pid, endt.sec, endt.nsec);
 	
 	// begin looping over critical section
 	// where each child checks the clock in shmem
@@ -126,20 +126,20 @@ main (int argc, char** argv)
 	} 
 	/************ Critical section ***********/
 	//fprintf(stderr, "child %ld in crit sec @ %s", pid, tme); 
-	if ((endtime.sec <= clock->sec && endtime.nsec <= clock->nsec)
-		|| (endtime.sec < clock->sec)) {
+	if ((endt.sec <= clock->sec && endt.nsec <= clock->nsec)
+		|| (endt.sec < clock->sec)) {
 		// child's time is up
 		//fprintf(stderr, "child %ld expired.\n", pid); 
 		expiry = 1;
-		sendmessage(msgid, pid, endtime, clock);
+		sendmessage(msgid, pid, endt, clock);
 	}
 	//fprintf(stderr, "%d\t%d\n", clock->sec, clock->nsec);
 	/*********** Exit section **************/
 	// unlock file
 	if (semop(semid, mutex+1, 1) == -1) { 		
 		if (errno == EINVAL) {
-			char* msg = "finished critical section after signal";
-			fprintf(stderr, "child %ld %s\n", pid, msg);
+			char* m0 = "finished critical section after signal";
+			fprintf(stderr, "child %ld %s\n", pid, m0);
 			return 1;
 		}
 		perror("Failed to unlock semid.");
