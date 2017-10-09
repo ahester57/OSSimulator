@@ -29,7 +29,7 @@ $Author: o1-hester $
 
 long spawnchild();
 void updateclock(oss_clock_t* clock);
-void* msgthread(void* arg);
+void* msgthread(void*);
 int initsighandlers();
 oss_clock_t* initsharedmemory(int shmid);
 int initsemaphores(int semid);
@@ -146,7 +146,7 @@ main (int argc, char** argv)
 	}
 
 	// Open log file
-	int logf = open(fname, (O_WRONLY | O_CREAT));
+	int logf = open(fname, (O_WRONLY | O_CREAT), PERM);
 	if (logf == -1) {
 		perror("Could not open log file:");
 		return 1;
@@ -163,7 +163,7 @@ main (int argc, char** argv)
 		cpid = spawnchild();
 		if (cpid == -1)	
 			break; // failed to create child
-
+		// log child creation
 		logchildcreate(logf, cpid);
 		childcount++;
 	}
@@ -183,6 +183,15 @@ main (int argc, char** argv)
 	if (cpid > 0) {
 		fprintf(stderr, "OSS: In parent code block.\n");
 		dprintf(logf, "OSS: In parent code block.\n");
+		int t_params[2];
+		t_params[0] = msgid;
+		t_params[1] = logf;
+		pthread_t tid;
+		int e = pthread_create(&tid, NULL, msgthread, t_params);
+		if (e) {
+			fprintf(stderr, "Failed to create thread.\n");
+			return 1;
+		}
 		// enter clock increment loop
 		while (clock->sec < 2) {
 			// update the system clock
@@ -196,27 +205,24 @@ main (int argc, char** argv)
 			}
 			int mcount = (int)(buf.msg_qnum);
 			if (mcount > 0) {
-				mymsg_t msg;
-				ssize_t sz = getmessage(msgid, &msg);
-				if (sz != (ssize_t)-1) {
-					char* m0 = "OSS: ";
-					char* m1 = msg.mtext;
-					dprintf(logf, "%s%s\n",m0,m1);
-					if (childcount > 19)
-						wait(NULL);
-					numlivechild--;
-					if (childcount < maxslaves) {
-						// spawn new child
-						cpid = spawnchild();
-						logchildcreate(logf, cpid);
-						childcount++;
-						numlivechild++;
-					}
+				if (childcount > 19)
+					wait(NULL);
+				numlivechild--;
+				if (childcount < maxslaves) {
+					//spawn new child
+					cpid = spawnchild();
+					logchildcreate(logf, cpid);
+					childcount++;
+					numlivechild++;
 				}
 			}
+			
 		}
 		fprintf(stderr, "Internal clock reached 2s.\n");
 		fprintf(stderr, "Filename for log: %s\n", fname);
+		pthread_cancel(tid);
+		fprintf(stderr, "Thread closed: %ld\n", (long)tid);
+		//pthread_join(tid, NULL);
 		close(logf);
 		// Waits for all children to be done
 		while (wait(NULL)) {
@@ -272,22 +278,30 @@ msgthread(void* arg)
 {
 	int msgid = *( (int*)(arg));
 	int logf = *( (int*)(arg + 1));
-	
-	// rc, mcount get number of messages in queue
-	struct msqid_ds buf;
-	int rc = msgctl(msgid, IPC_STAT, &buf);	
-	if (rc == -1) {
-		perror("Message failure.");
-	}
-	int mcount = (int)(buf.msg_qnum);
-	if (mcount > 0) {
-		mymsg_t msg;
-		ssize_t sz = getmessage(msgid, &msg);
-		if (sz != (ssize_t)-1) {
-			char* m0 = "OSS: ";
-			char* m1 = msg.mtext;
-			dprintf(logf, "%s%s\n",m0,m1);
+	while (1)
+	{
+		//usleep(1000);
+		pthread_testcancel();
+		//fprintf(stderr, "fuck trump%d\n", msgid);
+		// rc, mcount get number of messages in queue
+		struct msqid_ds buf;
+		int rc = msgctl(msgid, IPC_STAT, &buf);	
+		if (rc == -1) {
+			perror("THREAD: Message failure.");
 		}
+		int mcount = (int)(buf.msg_qnum);
+		pthread_testcancel();
+		if (mcount > 0) {
+			mymsg_t msg;
+			ssize_t sz = getmessage(msgid, &msg);
+			if (sz != (ssize_t)-1) {
+				char* m0 = "OSS: ";
+				char* m1 = msg.mtext;
+				dprintf(logf, "%s%s\n",m0,m1);
+				fprintf(stderr, "THREAD: %s%s\n",m0,m1);
+			}
+		}
+		pthread_testcancel();
 	}
 	return NULL;	
 }

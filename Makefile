@@ -1,7 +1,7 @@
 
 CC= gcc
 CFLAGS= -Wall -g
-LDLIBS= -lm
+LDLIBS= -lm -pthread
 COMMONSRCS= sighandler.c ipchelper.c filehelper.c
 OSSSRCS = oss.c
 CHILDSRCS = child.c
@@ -20,4 +20,4 @@ child: $(OBJECTS)
 $(OBJECTS): sighandler.h ipchelper.h filehelper.h
 
 clean:
-	$(RM) $(OBJECTS) *.o oss child
+	$(RM) $(OBJECTS) *.o *.log oss child
