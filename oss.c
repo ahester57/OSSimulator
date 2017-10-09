@@ -14,6 +14,8 @@ $Author: o1-hester $
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <fcntl.h>
+#include <pthread.h>
 #include <ctype.h>
 #include <unistd.h>
 #include <sys/wait.h>
@@ -27,10 +29,11 @@ $Author: o1-hester $
 
 long spawnchild();
 void updateclock(oss_clock_t* clock);
+void* msgthread(void* arg);
 int initsighandlers();
 oss_clock_t* initsharedmemory(int shmid);
 int initsemaphores(int semid);
-void logchildcreate(FILE* logf, long childpid);
+void logchildcreate(int logf, long childpid);
 void printusage();
 void printopterr(char optopt);
 
@@ -143,8 +146,8 @@ main (int argc, char** argv)
 	}
 
 	// Open log file
-	FILE* logf = fopen(fname, "w+");
-	if (logf == NULL) {
+	int logf = open(fname, (O_WRONLY | O_CREAT));
+	if (logf == -1) {
 		perror("Could not open log file:");
 		return 1;
 	}
@@ -179,14 +182,13 @@ main (int argc, char** argv)
 	/***************** Parent *****************/
 	if (cpid > 0) {
 		fprintf(stderr, "OSS: In parent code block.\n");
-		fprintf(logf, "OSS: In parent code block.\n");
-		mymsg_t msg;
-		struct msqid_ds buf;
+		dprintf(logf, "OSS: In parent code block.\n");
 		// enter clock increment loop
 		while (clock->sec < 2) {
 			// update the system clock
 			updateclock(clock);			
 			// rc, mcount get number of messages in queue
+			struct msqid_ds buf;
 			int rc = msgctl(msgid, IPC_STAT, &buf);	
 			if (rc == -1) {
 				perror("Message failure.");
@@ -194,11 +196,12 @@ main (int argc, char** argv)
 			}
 			int mcount = (int)(buf.msg_qnum);
 			if (mcount > 0) {
+				mymsg_t msg;
 				ssize_t sz = getmessage(msgid, &msg);
 				if (sz != (ssize_t)-1) {
 					char* m0 = "OSS: ";
 					char* m1 = msg.mtext;
-					fprintf(logf, "%s%s\n",m0,m1);
+					dprintf(logf, "%s%s\n",m0,m1);
 					if (childcount > 19)
 						wait(NULL);
 					numlivechild--;
@@ -214,7 +217,7 @@ main (int argc, char** argv)
 		}
 		fprintf(stderr, "Internal clock reached 2s.\n");
 		fprintf(stderr, "Filename for log: %s\n", fname);
-		fclose(logf);
+		close(logf);
 		// Waits for all children to be done
 		while (wait(NULL)) {
 			if (errno == ECHILD)
@@ -260,6 +263,33 @@ updateclock(oss_clock_t* clock)
 	}
 	//fprintf(stderr, "%d.%d\n", clock->sec, clock->nsec);
 	return;
+}
+
+// executed in thread to wait for and recieve messages from child
+// takes a void* as arg
+void*
+msgthread(void* arg)
+{
+	int msgid = *( (int*)(arg));
+	int logf = *( (int*)(arg + 1));
+	
+	// rc, mcount get number of messages in queue
+	struct msqid_ds buf;
+	int rc = msgctl(msgid, IPC_STAT, &buf);	
+	if (rc == -1) {
+		perror("Message failure.");
+	}
+	int mcount = (int)(buf.msg_qnum);
+	if (mcount > 0) {
+		mymsg_t msg;
+		ssize_t sz = getmessage(msgid, &msg);
+		if (sz != (ssize_t)-1) {
+			char* m0 = "OSS: ";
+			char* m1 = msg.mtext;
+			dprintf(logf, "%s%s\n",m0,m1);
+		}
+	}
+	return NULL;	
 }
 
 // initialize signal handlers, return -1 on error
@@ -320,10 +350,10 @@ initsemaphores(int semid)
 
 // log child creation
 void
-logchildcreate(FILE* logf, long childpid)
+logchildcreate(int logf, long childpid)
 {
 	fprintf(stderr, "... child %ld spawned.\n", childpid);
-	fprintf(logf, "... child %ld spawned.\n", childpid);
+	dprintf(logf, "... child %ld spawned.\n", childpid);
 	return;
 }
 

@@ -3,3 +3,5 @@
 *.out
 oss
 child
+*.log
+default.log
