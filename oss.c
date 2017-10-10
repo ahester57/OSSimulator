@@ -29,19 +29,25 @@ $Author: o1-hester $
 #include "ipchelper.h"
 #include "sighandler.h"
 #include "filehelper.h"
+#define FILEPERMS (O_WRONLY | O_TRUNC | O_CREAT)
 
 // id and operations for semaphores
 int semid;
 struct sembuf mutex[2];
 
-long spawnchild();
+// clock
 void updateclock(oss_clock_t* clock);
 void* systemclock(void* args);
-void* msgthread(void* args);
+// spawning children
+long spawnchild();
 void* logchildcreate(void* args);
+// message listener
+void* msgthread(void* args);
+// initiators
 int initsighandlers();
 oss_clock_t* initsharedmemory(int shmid);
 int initsemaphores(int semid);
+//print usage/error
 void printusage();
 void printopterr(char optopt);
 
@@ -103,13 +109,13 @@ main (int argc, char** argv)
 			return 1;
 		}
 	}
-	alarm(timeout);
 
 	// get key from file
 	key_t mkey, skey, shmkey;
-	if (((mkey = ftok(KEYPATH, MSG_ID)) == -1) ||
-		((skey = ftok(KEYPATH, SEM_ID)) == -1) ||
-		((shmkey = ftok(KEYPATH, SHM_ID)) == -1)) {
+	mkey = ftok(KEYPATH, MSG_ID);
+	skey = ftok(KEYPATH, SEM_ID);
+	shmkey = ftok(KEYPATH, SHM_ID);
+	if ((mkey == -1) || (skey == -1) || (shmkey == -1)) {
 		perror("Failed to retreive keys.");
 		return 1;
 	}
@@ -124,7 +130,8 @@ main (int argc, char** argv)
 	// semaphore contains 3 sems:
 	// 0 = child file i/o lock
 	// 1 = log file (oss) i/o lock 
-	if ((semid = getsemid(skey, 2)) == -1) {
+	semid = getsemid(skey, 2);
+	if (semid == -1) {
 		perror("Failed to create semaphore.");
 		return 1;
 	}	
@@ -137,31 +144,33 @@ main (int argc, char** argv)
 
 	/************** Set up message queue *********/
 	// Initiate message queue	
-	int msgid;
-	if ((msgid = getmsgid(mkey)) == -1) {
+	int msgid = getmsgid(mkey);
+	if (msgid == -1) {
 		perror("Failed to create message queue.");
 		return 1;
 	}
 
 	// Open log file
-	int logf = open(fname, (O_WRONLY | O_CREAT), PERM);
+	int logf = open(fname, FILEPERMS, PERM);
 	if (logf == -1) {
 		perror("Could not open log file:");
 		return 1;
 	}
 
 	/*************** Set up shared memory *********/
-	int shmid;
+	int shmid = getclockshmid(shmkey);
 	oss_clock_t* clock;
-	if ((shmid = getclockshmid(shmkey)) == -1) {
+	if (shmid == -1) {
 		perror("Failed to create shared memory segment.");
 		return 1;
 	}	
-	if ((clock = initsharedmemory(shmid)) == (void*)-1) {
+	clock = initsharedmemory(shmid); 
+	if (clock == (void*)-1) {
 		perror("Failed to attack shared memory.");	
 		return 1;
 	}
 
+	alarm(timeout);
 	/****************** Spawn Children ***********/
 	// make child
 	long cpid;
@@ -305,7 +314,7 @@ spawnchild(int logfile)
 	return cpid;
 }
 
-// log child creation thread
+// thread for logging child creation
 // logfile protected by semaphores
 // takes void* as arg
 void*
@@ -313,7 +322,7 @@ logchildcreate(void* args)
 {
 	long childpid = *((long*)(args));
 	long logf = *((long*)(args)+1);
-	pthread_testcancel();
+	pthread_testcancel(); // testcancel sets possible cancellation pts
 
 	// wait until your turn
 	if (semop(semid, mutex, 1) == -1) {
@@ -336,7 +345,7 @@ logchildcreate(void* args)
 	return NULL;
 }
 
-// executed in thread to wait for and recieve messages from child
+// thread to wait for and recieve messages from child
 // logfile protected by semaphores
 // takes a void* as arg
 void*
@@ -345,7 +354,7 @@ msgthread(void* args)
 	int msgid = *((int*)(args));
 	int logf = *((int*)(args)+1);
 	pthread_testcancel();
-	while (1)
+	while (69)
 	{
 		pthread_testcancel();
 		// sleep for 3000 microseconds, gives spawnLOG more time
@@ -365,7 +374,7 @@ msgthread(void* args)
 			char* m1 = msg.mtext;
 			dprintf(logf, "%s%s\n",m0,m1);
 			fprintf(stderr, "%s%s\n",m0,m1);
-		}
+		} 
 
 		// unlock file
 		if (semop(semid, mutex+1, 1) == -1) { 		
@@ -406,7 +415,8 @@ oss_clock_t*
 initsharedmemory(int shmid)
 {
 	oss_clock_t* clock;
-	if ((clock = attachshmclock(shmid)) == (void*)-1) {
+	clock = attachshmclock(shmid);
+	if (clock == (void*)-1) {
 		perror("Failed to attack shared memory.");	
 		return (void*)-1;
 	}

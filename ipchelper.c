@@ -35,11 +35,11 @@ initelement(int semid, int semnum, int semval)
 int
 getsemid(key_t skey, int nsems)
 {
-	int semid;
-	if ((semid = semget(skey, nsems, PERM | IPC_CREAT)) == -1) {
+	sem_id = semget(skey, nsems, PERM | IPC_CREAT);
+	// seems pointless, but what if i wanna do something on failure?
+	if (sem_id == -1) {
 		return -1;
 	}
-	sem_id = semid;
 	return sem_id;
 }
 
@@ -47,11 +47,10 @@ getsemid(key_t skey, int nsems)
 int
 getmsgid(key_t mkey)
 {
-	int msgid;
-	if ((msgid = msgget(mkey, PERM | IPC_CREAT)) == -1) {
+	msg_id = msgget(mkey, PERM | IPC_CREAT);
+	if (msg_id == -1) {
 		return -1;
 	}
-	msg_id = msgid;
 	return msg_id;
 }
 
@@ -59,11 +58,10 @@ getmsgid(key_t mkey)
 int
 getclockshmid(key_t shmkey)
 {
-	int shmid;
-	if ((shmid = shmget(shmkey, 2*sizeof(int), PERM | IPC_CREAT)) == -1) {
+	shm_clock_id = shmget(shmkey, 2*sizeof(int), PERM | IPC_CREAT);
+	if (shm_clock_id == -1) {
 		return -1;
 	}
-	shm_clock_id = shmid;
 	return shm_clock_id;
 }
 
@@ -71,23 +69,18 @@ getclockshmid(key_t shmkey)
 int
 getclockshmidreadonly(key_t shmkey)
 {
-	int shmid;
-	if ((shmid = shmget(shmkey, sizeof(oss_clock_t), RPERM)) == -1) {
-		return -1;
-	}
-	return shmid;
+	return shmget(shmkey, sizeof(oss_clock_t), RPERM);
 }
 
 // attach shared memory segment
 oss_clock_t*
 attachshmclock(int shmid)
 {
-	oss_clock_t* clock;
-	if ((clock = (oss_clock_t*)shmat(shmid, NULL, 0)) == (void*)-1) {
+	shm_addr = (oss_clock_t*)shmat(shmid, NULL, 0);
+	if (shm_addr == (void*)-1) {
 		return (void*)-1;
 	}
-	shm_addr = clock;
-	return clock;
+	return shm_addr;
 }
 
 //set up a semaphore operation
@@ -105,12 +98,12 @@ setsembuf(struct sembuf *s, int n, int op, int flg)
 int
 sendmessage(int msgid, long pid, oss_clock_t endtime, oss_clock_t* clock)
 {
-	mymsg_t* mymsg;
-	if ((mymsg = (mymsg_t*) malloc(sizeof(mymsg_t))) == NULL) {
+	mymsg_t* mymsg = (mymsg_t*) malloc(sizeof(mymsg_t));
+	if (mymsg == NULL) {
 		return -1;
 	}
 	// ti is current time
-	// eti is child time 
+	// eti is child expiry time 
 	int t0 = clock->sec;
 	int t1 = clock->nsec;
 	int et0 = endtime.sec;
@@ -142,7 +135,6 @@ getmessage(int msgid, mymsg_t* msg)
 	ssize_t sz;
 	sz = msgrcv(msgid, msg, sizeof(mymsg_t),0,IPC_NOWAIT);
 	if (sz == (ssize_t)-1 && errno != ENOMSG) {
-		perror("Message receive error: ");
 		return (ssize_t)-1;
 	}	
 	return sz;

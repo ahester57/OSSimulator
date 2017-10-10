@@ -41,12 +41,14 @@ main (int argc, char** argv)
 	
 	// get key from file
 	key_t mkey, skey, shmkey;
-	if (((mkey = ftok(KEYPATH, MSG_ID)) == -1) ||
-		((skey = ftok(KEYPATH, SEM_ID)) == -1) ||
-		((shmkey = ftok(KEYPATH, SHM_ID)) == -1)) {
+	mkey = ftok(KEYPATH, MSG_ID);
+	skey = ftok(KEYPATH, SEM_ID);
+	shmkey = ftok(KEYPATH, SHM_ID);
+	if ((mkey == -1) || (skey == -1) || (shmkey == -1)) {
 		perror("Failed to retreive keys.");
 		return 1;
 	}
+
 	/*************** Set up signal handler ********/
 	if (initsighandler() == -1) {
 		perror("Failed to set up signal handlers");
@@ -54,20 +56,21 @@ main (int argc, char** argv)
 	}
 
 	/***************** Set up shared memory *******/
-	int shmid;
+	int shmid = getclockshmidreadonly(shmkey);
 	oss_clock_t* clock;
-	if ((shmid = getclockshmidreadonly(shmkey)) == -1) {
+	if (shmid == -1) {
 		perror("Failed to retreive shared memvory segment.");
 		return 1;
-	}	
-	if ((clock = attachshmclock(shmid)) == (void*)-1) {
+	}
+	clock = attachshmclock(shmid);
+	if (clock == (void*)-1) {
 		perror("Failed to attack shared memory.");	
 		return 1;
 	}
 
 	/***************** Set up semaphore ************/
-	//int semid;
-	if ((semid = semget(skey, 2, PERM)) == -1) {
+	semid = semget(skey, 2, PERM);
+	if (semid == -1) {
 		if (errno == EIDRM) {
 			perror("I cannot go on like this :(\n");
 			return 1;
@@ -80,9 +83,9 @@ main (int argc, char** argv)
 	setsembuf(mutex+1, 0, 1, 0);
 
 	/**************** Set up message queue *********/
-	//mymsg_t mymsg;	
-	int msgid;
-	if ((msgid = msgget(mkey, PERM)) == -1) {
+	// for writing
+	int msgid = msgget(mkey, PERM);
+	if (msgid == -1) {
 		if (errno == EIDRM) {
 			perror("I cannot go on like this :(\n");
 			return 1;
