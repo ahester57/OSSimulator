@@ -120,19 +120,18 @@ sendmessage(int msgid, long pid, oss_clock_t endtime, oss_clock_t* clock)
 	char* m1 = " is terminating at time ";
 	char* m2 = " because it reached ";
 	char* m3 = " in slave";
-	char* t_msg = (char*)malloc(LINESIZE*sizeof(char));
-	if (t_msg == NULL) {
+	char* t_m = (char*)malloc(LINESIZE*sizeof(char));
+	if (t_m == NULL) {
 		return -1;
 	}
-	sprintf(t_msg,"%s%ld%s%d.%d%s%d.%d%s",m0,pid,m1,t0,t1,m2,et0,et1,m3);
+	sprintf(t_m,"%s%ld%s%d.%d%s%d.%d%s",m0,pid,m1,t0,t1,m2,et0,et1,m3);
 	mymsg->mtype = 1;
-	memcpy(mymsg->mtext, t_msg, LINESIZE);
-	//fprintf(stderr, "%s\n", t_msg);
+	memcpy(mymsg->mtext, t_m, LINESIZE);
 	if (msgsnd(msgid, mymsg, sizeof(mymsg_t), 0) == -1) {
-		free(t_msg);
+		free(t_m);
 		return -1;
 	}	
-	free(t_msg);
+	free(t_m);
 	return 0;
 }
 

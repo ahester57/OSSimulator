@@ -29,7 +29,8 @@ catchctrlc(int signo)
 	}
 	removeshmem(-1, -1, -1, (void*)-1);
 	pid_t pgid = getpgid(getpid());
-	while(wait(NULL)) {
+	while(wait(NULL))
+	{
 		if (errno == ECHILD)
 			break;
 	}

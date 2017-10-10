@@ -60,8 +60,10 @@ main (int argc, char** argv)
 	char* fname = "default.log";
 	opterr = 0;
 	char c;
-	while ((c = getopt(argc, argv, "hs:l:t:")) != -1) {
-		switch(c) {
+	while ((c = getopt(argc, argv, "hs:l:t:")) != -1)
+	{
+		switch(c)
+		{
 		case 'h':
 			printusage();
 			return 0;
@@ -165,7 +167,8 @@ main (int argc, char** argv)
 	long cpid;
 	int childcount = 0;
 	int term = (maxslaves < 19) ? maxslaves : 19;
-	while (childcount < term) {
+	while (childcount < term)
+	{
 		// spawn new child
 		// child executes child program
 		cpid = spawnchild(logf);
@@ -191,6 +194,7 @@ main (int argc, char** argv)
 		int t_params[2];
 		t_params[0] = msgid;
 		t_params[1] = logf;
+		// start message listener thread
 		pthread_t tid;
 		int e = pthread_create(&tid, NULL, msgthread, t_params);
 		if (e) {
@@ -200,7 +204,6 @@ main (int argc, char** argv)
 
 		// start system clock thread
 		pthread_t ctid;
-			
 		e = pthread_create(&ctid, NULL, systemclock, clock);
 		if (e) {
 			fprintf(stderr, "Failed to create thread.\n");
@@ -211,9 +214,10 @@ main (int argc, char** argv)
 		// continuously adds children until:
 		// * the clock has reached 2 s
 		// * 100 children have been spawned
-		while (clock->sec < 2 && childcount < 100) {
-			// rc, mcount get number of messages in queue
+		while (clock->sec < 2 && childcount < 100)
+		{
 			if (childcount > 19) {
+				// don't have too many kids at once
 				wait(NULL);			
 			}
 			if (childcount < maxslaves) {
@@ -224,7 +228,8 @@ main (int argc, char** argv)
 		}
 			
 		// Waits for all children to be done
-		while (wait(NULL)) {
+		while (wait(NULL))
+		{
 			if (errno == ECHILD)
 				break;
 		}
@@ -254,7 +259,7 @@ main (int argc, char** argv)
 void
 updateclock(oss_clock_t* clock)
 {
-	clock->nsec += 5;
+	clock->nsec += 10;
 	if (clock->nsec >= 1000000000) {
 		clock->sec += 1;
 		clock->nsec = 0;
@@ -268,7 +273,8 @@ void*
 systemclock(void* args)
 {
 	oss_clock_t* clock = (oss_clock_t*)(args);
-	while (clock->sec < 2) {
+	while (clock->sec < 2)
+	{
 		updateclock(clock);			
 	}
 	return NULL;
@@ -292,13 +298,15 @@ spawnchild(int logfile)
 	long t_params[2];
 	t_params[0] = cpid;
 	t_params[1] = (long)logfile;
+	// create thread, send t_params
 	pthread_create(&ltid, NULL, logchildcreate, (void*)t_params);
-	pthread_join(ltid, NULL);
+	pthread_join(ltid, NULL); // w/o this shit gets crazy
 	fprintf(stderr, "joined\n");
 	return cpid;
 }
-
+
 // log child creation thread
+// logfile protected by semaphores
 // takes void* as arg
 void*
 logchildcreate(void* args)
@@ -329,6 +337,7 @@ logchildcreate(void* args)
 }
 
 // executed in thread to wait for and recieve messages from child
+// logfile protected by semaphores
 // takes a void* as arg
 void*
 msgthread(void* args)
@@ -339,31 +348,25 @@ msgthread(void* args)
 	while (1)
 	{
 		pthread_testcancel();
-		usleep(10000);
+		// sleep for 3000 microseconds, gives spawnLOG more time
+		usleep(3000);
 		// wait until your turn
 		if (semop(semid, mutex, 1) == -1) {
 			perror("Failed to lock semid.");
 			pthread_exit(NULL);
 		}
+
 		// CRITICAL SECTION
-		// rc, mcount get number of messages in queue
-		struct msqid_ds buf;
-		int rc = msgctl(msgid, IPC_STAT, &buf);	
-		if (rc == -1) {
-			perror("THREAD: Message failure.");
-			pthread_exit(NULL);
+		mymsg_t msg;
+		// retrieve message
+		ssize_t sz = getmessage(msgid, &msg);
+		if (sz != (ssize_t)-1) {
+			char* m0 = "OSS: ";
+			char* m1 = msg.mtext;
+			dprintf(logf, "%s%s\n",m0,m1);
+			fprintf(stderr, "%s%s\n",m0,m1);
 		}
-		int mcount = (int)(buf.msg_qnum);
-		if (mcount > 0) {
-			mymsg_t msg;
-			ssize_t sz = getmessage(msgid, &msg);
-			if (sz != (ssize_t)-1) {
-				char* m0 = "OSS: ";
-				char* m1 = msg.mtext;
-				dprintf(logf, "%s%s\n",m0,m1);
-				fprintf(stderr, "%s%s\n",m0,m1);
-			}
-		}
+
 		// unlock file
 		if (semop(semid, mutex+1, 1) == -1) { 		
 			perror("Failed to unlock semid.");
@@ -374,8 +377,7 @@ msgthread(void* args)
 	}
 	return NULL;	
 }
-
-
+
 // initialize signal handlers, return -1 on error
 int
 initsighandlers()
@@ -431,7 +433,6 @@ initsemaphores(int semid)
 	}
 	return 0;
 }
-
 
 // when the user dun goofs
 void

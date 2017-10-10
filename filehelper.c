@@ -26,7 +26,8 @@ setArrayFromFile(const char* filename, char** list)
 	if (line == NULL)
 		return -1;
 	rewind(fp);
-	while (fgets(line, LINESIZE, (FILE*)fp)) {
+	while (fgets(line, LINESIZE, (FILE*)fp))
+	{
 		list[n] = malloc(LINESIZE*sizeof(char));
 		// copy line into array, remove newline
 		memcpy(list[n], line, LINESIZE);
@@ -54,7 +55,8 @@ countLines(const char* filename)
 	if (line == NULL)
 		return -1;
 	rewind(fp);
-	while (fgets(line, LINESIZE, (FILE*)fp)) {
+	while (fgets(line, LINESIZE, (FILE*)fp))
+	{
 		n++;
 	}
 	free(line);

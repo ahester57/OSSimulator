@@ -127,15 +127,12 @@ main (int argc, char** argv)
 		return 1;
 	} 
 	/************ Critical section ***********/
-	//fprintf(stderr, "child %ld in crit sec @ %s", pid, tme); 
 	if ((endt.sec <= clock->sec && endt.nsec <= clock->nsec)
 		|| (endt.sec < clock->sec)) {
 		// child's time is up
-		//fprintf(stderr, "child %ld expired.\n", pid); 
 		expiry = 1;
 		sendmessage(msgid, pid, endt, clock);
 	}
-	//fprintf(stderr, "child %ld in crit\n", pid);
 	/*********** Exit section **************/
 	// unlock file
 	if (semop(semid, mutex+1, 1) == -1) { 		
