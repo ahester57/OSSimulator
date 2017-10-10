@@ -1,7 +1,7 @@
 
 CC= gcc
 CFLAGS= -Wall -g
-LDLIBS= -lm -pthread
+LDLIBS= -pthread
 COMMONSRCS= sighandler.c ipchelper.c filehelper.c
 OSSSRCS = oss.c
 CHILDSRCS = child.c

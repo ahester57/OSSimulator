@@ -20,7 +20,8 @@ Keeps track of an internal system clock in shared memory.
 Uses threads to:  
 
 	* Increment system clock
-	* Receive and log message from child
+	* Receive message from child
+	* Log messasge from child
 	* Log the spawning of children
 
 Child processes use message queues to talk to master.  

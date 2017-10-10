@@ -1,8 +1,11 @@
 /*
-$Id: sighandler.c,v 1.1 2017/10/04 07:45:49 o1-hester Exp o1-hester $
-$Date: 2017/10/04 07:45:49 $
-$Revision: 1.1 $
+$Id: sighandler.c,v 1.2 2017/10/10 20:18:50 o1-hester Exp $
+$Date: 2017/10/10 20:18:50 $
+$Revision: 1.2 $
 $Log: sighandler.c,v $
+Revision 1.2  2017/10/10 20:18:50  o1-hester
+bug fix
+
 Revision 1.1  2017/10/04 07:45:49  o1-hester
 Initial revision
 
@@ -10,6 +13,7 @@ $Author: o1-hester $
 */
 
 #include <unistd.h>
+#include <pthread.h>
 #include <sys/wait.h>
 #include "ipchelper.h"
 #include "sighandler.h"
@@ -36,6 +40,8 @@ catchctrlc(int signo)
 	}
 
 	kill(pgid, SIGKILL);
+	pthread_exit(NULL);
+	exit(1);
 	//sleep(2);
 }
 

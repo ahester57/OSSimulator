@@ -1,8 +1,11 @@
 /*
-$Id: oss.c,v 1.3 2017/10/09 22:00:42 o1-hester Exp o1-hester $
-$Date: 2017/10/09 22:00:42 $
-$Revision: 1.3 $
+$Id: oss.c,v 1.4 2017/10/10 20:19:07 o1-hester Exp o1-hester $
+$Date: 2017/10/10 20:19:07 $
+$Revision: 1.4 $
 $Log: oss.c,v $
+Revision 1.4  2017/10/10 20:19:07  o1-hester
+threading
+
 Revision 1.3  2017/10/09 22:00:42  o1-hester
 threading
 
@@ -34,6 +37,7 @@ $Author: o1-hester $
 // id and operations for semaphores
 int semid;
 struct sembuf mutex[2];
+struct sembuf msgwait[1];
 
 // clock
 void updateclock(oss_clock_t* clock);
@@ -116,61 +120,66 @@ main (int argc, char** argv)
 	skey = ftok(KEYPATH, SEM_ID);
 	shmkey = ftok(KEYPATH, SHM_ID);
 	if ((mkey == -1) || (skey == -1) || (shmkey == -1)) {
-		perror("Failed to retreive keys.");
+		perror("OSS: Failed to retreive keys.");
 		return 1;
 	}
 
-	/*************** Set up signal handler ********/
+	/************** Set up signal handler ********/
 	if (initsighandlers() == -1) {
-		perror("Failed to set up signal handlers.");
+		perror("OSS: Failed to set up signal handlers.");
 		return 1;
 	}
 
-	/*************** Set up semaphore *************/
+	/************** Set up semaphore *************/
 	// semaphore contains 3 sems:
 	// 0 = child file i/o lock
 	// 1 = log file (oss) i/o lock 
-	semid = getsemid(skey, 2);
+	semid = getsemid(skey, 3);
 	if (semid == -1) {
-		perror("Failed to create semaphore.");
+		perror("OSS: Failed to create semaphore.");
 		return 1;
 	}	
 	if (initsemaphores(semid) == -1) {
-		perror("Failed to init semaphores.");
+		perror("OSS: Failed to init semaphores.");
 		return 1;
 	}
+	// mutex for log file
 	setsembuf(mutex, 1, -1, 0);
 	setsembuf(mutex+1, 1, 1, 0);
+	// msgwait for message queues
+	setsembuf(msgwait, 2, -1, 0);
 
 	/************** Set up message queue *********/
 	// Initiate message queue	
 	int msgid = getmsgid(mkey);
 	if (msgid == -1) {
-		perror("Failed to create message queue.");
+		perror("OSS: Failed to create message queue.");
 		return 1;
 	}
 
-	// Open log file
+	/************** Open log file ****************/
 	int logf = open(fname, FILEPERMS, PERM);
 	if (logf == -1) {
-		perror("Could not open log file:");
+		perror("OSS: Could not open log file:");
 		return 1;
 	}
 
-	/*************** Set up shared memory *********/
+	/************** Set up shared memory *********/
 	int shmid = getclockshmid(shmkey);
 	oss_clock_t* clock;
 	if (shmid == -1) {
-		perror("Failed to create shared memory segment.");
+		perror("OSS: Failed to create shared memory segment.");
 		return 1;
 	}	
 	clock = initsharedmemory(shmid); 
 	if (clock == (void*)-1) {
-		perror("Failed to attack shared memory.");	
+		perror("OSS: Failed to attach shared memory.");	
 		return 1;
 	}
 
+	// begin timeout alarm
 	alarm(timeout);
+
 	/****************** Spawn Children ***********/
 	// make child
 	long cpid;
@@ -188,9 +197,9 @@ main (int argc, char** argv)
 	
 	// If master fails at spawning children
 	if (cpid == -1) {
-		perror("Failed to create child.");
+		perror("OSS: Failed to create child.");
 		if (removeshmem(msgid, semid, shmid, clock) == -1) {
-			perror("failed to remove shared mem segment");
+			perror("OSS: Failed to remove shared mem segment");
 			return 1;
 		}
 	}
@@ -198,6 +207,7 @@ main (int argc, char** argv)
 	
 	/***************** Parent *****************/
 	if (cpid > 0) {
+		// say when parent enters this section
 		fprintf(stderr, "OSS: In parent code block.\n");
 		dprintf(logf, "OSS: In parent code block.\n");
 		int t_params[2];
@@ -207,18 +217,16 @@ main (int argc, char** argv)
 		pthread_t tid;
 		int e = pthread_create(&tid, NULL, msgthread, t_params);
 		if (e) {
-			fprintf(stderr, "Failed to create thread.\n");
+			fprintf(stderr, "OSS: Failed to create msg listener\n");
 			return 1;
 		}
-
 		// start system clock thread
 		pthread_t ctid;
 		e = pthread_create(&ctid, NULL, systemclock, clock);
 		if (e) {
-			fprintf(stderr, "Failed to create thread.\n");
+			fprintf(stderr, "OSS: Failed to create clock thread.\n");
 			return 1;
 		}
-
 		// The PARENT LOOP
 		// continuously adds children until:
 		// * the clock has reached 2 s
@@ -235,30 +243,38 @@ main (int argc, char** argv)
 				childcount++;
 			}
 		}
-			
 		// Waits for all children to be done
 		while (wait(NULL))
 		{
 			if (errno == ECHILD)
 				break;
 		}
-		fprintf(stderr, "All children accounted for\n");
+
+
+		/***************8 add mutex here and log this stuff **/
+
+		fprintf(stderr, "OSS: All children accounted for\n");
 		// wait until clock is finished to close everything
 		// lets message thread deal with its queue
-		while (clock->sec < 2) {};
-		fprintf(stderr, "Internal clock reached 2s.\n");
-		fprintf(stderr, "Filename for log: %s\n", fname);
-		fprintf(stderr, "Message thread closed.\n");
+		/************ try to get rid of this, set up semaphore */
+		if (pthread_join(ctid, NULL) != 0) {
+			perror("OSS: Failed to join clock thread.");
+			return 1;
+		}
+		//while (clock->sec < 2) {};
+		
+		fprintf(stderr, "OSS: Internal clock reached 2s.\n");
+		fprintf(stderr, "OSS: Filename for log: %s\n", fname);
+		fprintf(stderr, "OSS: Message thread closed.\n");
 		// close listening thread
 		pthread_cancel(tid);
 		close(logf);
 		if (removeshmem(msgid, semid, shmid, clock) == -1) {
 			// failed to remove shared mem segment
-			perror("Failed to remove shared memory.");
+			perror("OSS: Failed to remove shared memory.");
 			return 1;
 		}
-		
-		fprintf(stderr, "Done. %ld\n", (long)getpgid(getpid()));
+		fprintf(stderr, "OSS: Done. PID=%ld\n", (long)getpgid(getpid()));
 	}	
 	return 0;	
 
@@ -273,7 +289,6 @@ updateclock(oss_clock_t* clock)
 		clock->sec += 1;
 		clock->nsec = 0;
 	}
-	//fprintf(stderr, "%d.%d\n", clock->sec, clock->nsec);
 	return;
 }
 
@@ -294,12 +309,13 @@ systemclock(void* args)
 long
 spawnchild(int logfile)
 {
+	int e;
 	long cpid = fork();
 	/***************** Child ******************/
 	if (cpid <= 0) {
 		// execute child
 		execl("./child", "child", (char*)NULL);
-		perror("Exec failure.");
+		perror("OSS: Exec failure.");
 		return -1; // if error
 	}
 	// parent makes thread to write to file
@@ -308,9 +324,12 @@ spawnchild(int logfile)
 	t_params[0] = cpid;
 	t_params[1] = (long)logfile;
 	// create thread, send t_params
-	pthread_create(&ltid, NULL, logchildcreate, (void*)t_params);
-	pthread_join(ltid, NULL); // w/o this shit gets crazy
-	fprintf(stderr, "joined\n");
+	e = pthread_create(&ltid, NULL, logchildcreate, (void*)t_params);
+	if (e) 
+		perror("OSS: Failed to create child log thread.");
+	e = pthread_join(ltid, NULL); // w/o this shit gets crazy
+	if (e)
+		perror("OSS: Failed to wait for child log thread.");
 	return cpid;
 }
 
@@ -326,18 +345,18 @@ logchildcreate(void* args)
 
 	// wait until your turn
 	if (semop(semid, mutex, 1) == -1) {
-		perror("Failed to lock semid.");
+		perror("C_LOG: Failed to lock logfile.");
 		pthread_exit(NULL);
 	}
 
 	// CRITICAL SECTION
-	fprintf(stderr, "... child %ld spawned.\n", childpid);
-	dprintf(logf, "... child %ld spawned.\n", childpid);
-	fprintf(stderr, "T_SPAWN: %ld\t%ld\n", childpid, logf);
+	fprintf(stderr, "C_LOG: ... child %ld spawned.\n", childpid);
+	dprintf(logf, "C_LOG: ... child %ld spawned.\n", childpid);
+	//fprintf(stderr, "T_SPAWN: %ld\t%ld\n", childpid, logf);
 
 	// unlock file
 	if (semop(semid, mutex+1, 1) == -1) { 		
-		perror("Failed to unlock semid.");
+		perror("C_LOG: Failed to unlock logfile.");
 		pthread_exit(NULL);	
 	}
 
@@ -357,11 +376,16 @@ msgthread(void* args)
 	while (69)
 	{
 		pthread_testcancel();
+		// wait until signaled by child 
+		if (semop(semid, msgwait, 1) == -1) {
+			perror("MSGTHREAD: Failed to wait for message.");
+			pthread_exit(NULL);
+		}
 		// sleep for 3000 microseconds, gives spawnLOG more time
-		usleep(3000);
+		usleep(1000);
 		// wait until your turn
 		if (semop(semid, mutex, 1) == -1) {
-			perror("Failed to lock semid.");
+			perror("MSGTHREAD: Failed to lock logfile.");
 			pthread_exit(NULL);
 		}
 
@@ -370,7 +394,7 @@ msgthread(void* args)
 		// retrieve message
 		ssize_t sz = getmessage(msgid, &msg);
 		if (sz != (ssize_t)-1) {
-			char* m0 = "OSS: ";
+			char* m0 = "MSGTHREAD: ";
 			char* m1 = msg.mtext;
 			dprintf(logf, "%s%s\n",m0,m1);
 			fprintf(stderr, "%s%s\n",m0,m1);
@@ -378,7 +402,7 @@ msgthread(void* args)
 
 		// unlock file
 		if (semop(semid, mutex+1, 1) == -1) { 		
-			perror("Failed to unlock semid.");
+			perror("MSGTHREAD: Failed to unlock logfile.");
 			pthread_exit(NULL);	
 		}
 		//wait(NULL);
@@ -417,7 +441,7 @@ initsharedmemory(int shmid)
 	oss_clock_t* clock;
 	clock = attachshmclock(shmid);
 	if (clock == (void*)-1) {
-		perror("Failed to attack shared memory.");	
+		// failed to init shm
 		return (void*)-1;
 	}
 	clock->sec = 0;
@@ -429,14 +453,20 @@ initsharedmemory(int shmid)
 int
 initsemaphores(int semid)
 {
-	// set up file i/o lock
+	// set up child shm read lock
 	if (initelement(semid, 0, 1) == -1) {
 		if (semctl(semid, 0, IPC_RMID) == -1)
 			return -1;
 		return -1;
 	}
-	// set up child limiter
+	// set up file i/o lock
 	if (initelement(semid, 1, 1) == -1) {
+		if (semctl(semid, 0, IPC_RMID) == -1)
+			return -1;
+		return -1;
+	}
+	// set up message queue lock
+	if (initelement(semid, 2, 1) == -1) {
 		if (semctl(semid, 0, IPC_RMID) == -1)
 			return -1;
 		return -1;
