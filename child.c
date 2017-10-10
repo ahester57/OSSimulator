@@ -1,8 +1,11 @@
 /*
-$Id: child.c,v 1.2 2017/10/04 07:55:28 o1-hester Exp o1-hester $
-$Date: 2017/10/04 07:55:28 $
-$Revision: 1.2 $
+$Id: child.c,v 1.3 2017/10/09 22:00:49 o1-hester Exp o1-hester $
+$Date: 2017/10/09 22:00:49 $
+$Revision: 1.3 $
 $Log: child.c,v $
+Revision 1.3  2017/10/09 22:00:49  o1-hester
+*** empty log message ***
+
 Revision 1.2  2017/10/04 07:55:28  o1-hester
 clock set up
 
@@ -24,6 +27,7 @@ $Author: o1-hester $
 #define PALIN "./palin.out"
 #define NOPALIN "./nopalin.out"
 
+// id and operations for semaphores
 int semid;
 struct sembuf mutex[2];
 
@@ -71,11 +75,9 @@ main (int argc, char** argv)
 		perror("Failed to set up semaphore.");
 		return 1;
 	}
-	//struct sembuf mutex[2];
-	struct sembuf signalDad[2];
+
 	setsembuf(mutex, 0, -1, 0);
 	setsembuf(mutex+1, 0, 1, 0);
-	setsembuf(signalDad, 1, -1, 0);
 
 	/**************** Set up message queue *********/
 	//mymsg_t mymsg;	
@@ -133,7 +135,7 @@ main (int argc, char** argv)
 		expiry = 1;
 		sendmessage(msgid, pid, endt, clock);
 	}
-	//fprintf(stderr, "%d\t%d\n", clock->sec, clock->nsec);
+	//fprintf(stderr, "child %ld in crit\n", pid);
 	/*********** Exit section **************/
 	// unlock file
 	if (semop(semid, mutex+1, 1) == -1) { 		
