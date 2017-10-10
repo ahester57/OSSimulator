@@ -127,7 +127,7 @@ sendmessage(int msgid, long pid, oss_clock_t endtime, oss_clock_t* clock)
 	sprintf(t_msg,"%s%ld%s%d.%d%s%d.%d%s",m0,pid,m1,t0,t1,m2,et0,et1,m3);
 	mymsg->mtype = 1;
 	memcpy(mymsg->mtext, t_msg, LINESIZE);
-	fprintf(stderr, "%s\n", t_msg);
+	//fprintf(stderr, "%s\n", t_msg);
 	if (msgsnd(msgid, mymsg, sizeof(mymsg_t), 0) == -1) {
 		free(t_msg);
 		return -1;

@@ -168,7 +168,7 @@ main (int argc, char** argv)
 	while (childcount < term) {
 		// spawn new child
 		// child executes child program
-		cpid = spawnchild(logf, childcount);
+		cpid = spawnchild(logf);
 		if (cpid == -1)	
 			break; // failed to create child
 		childcount++;
@@ -206,31 +206,38 @@ main (int argc, char** argv)
 			fprintf(stderr, "Failed to create thread.\n");
 			return 1;
 		}
-		while (clock->sec < 2) {
+
+		// The PARENT LOOP
+		// continuously adds children until:
+		// * the clock has reached 2 s
+		// * 100 children have been spawned
+		while (clock->sec < 2 && childcount < 100) {
 			// rc, mcount get number of messages in queue
 			if (childcount > 19) {
 				wait(NULL);			
 			}
 			if (childcount < maxslaves) {
-				printf("Boutta spawn\n");
 				//spawn new child
-				cpid = spawnchild(logf, ++childcount);
-				//childcount++;
+				cpid = spawnchild(logf);
+				childcount++;
 			}
 		}
 			
-		
-		fprintf(stderr, "Internal clock reached 2s.\n");
-		fprintf(stderr, "Filename for log: %s\n", fname);
-		// close listening thread
-		pthread_cancel(tid);
-		fprintf(stderr, "Message thread closed.\n");
-		close(logf);
 		// Waits for all children to be done
 		while (wait(NULL)) {
 			if (errno == ECHILD)
 				break;
 		}
+		fprintf(stderr, "All children accounted for\n");
+		// wait until clock is finished to close everything
+		// lets message thread deal with its queue
+		while (clock->sec < 2) {};
+		fprintf(stderr, "Internal clock reached 2s.\n");
+		fprintf(stderr, "Filename for log: %s\n", fname);
+		fprintf(stderr, "Message thread closed.\n");
+		// close listening thread
+		pthread_cancel(tid);
+		close(logf);
 		if (removeshmem(msgid, semid, shmid, clock) == -1) {
 			// failed to remove shared mem segment
 			perror("Failed to remove shared memory.");
@@ -270,7 +277,7 @@ systemclock(void* args)
 // spawns a new child, return childpid, -1 on error
 // takes logfile descripter
 long
-spawnchild(int logfile, int numchild)
+spawnchild(int logfile)
 {
 	long cpid = fork();
 	/***************** Child ******************/
@@ -287,7 +294,6 @@ spawnchild(int logfile, int numchild)
 	t_params[1] = (long)logfile;
 	pthread_create(&ltid, NULL, logchildcreate, (void*)t_params);
 	pthread_join(ltid, NULL);
-	//pthread_detach(ltid);
 	fprintf(stderr, "joined\n");
 	return cpid;
 }
@@ -363,6 +369,7 @@ msgthread(void* args)
 			perror("Failed to unlock semid.");
 			pthread_exit(NULL);	
 		}
+		//wait(NULL);
 		pthread_testcancel();
 	}
 	return NULL;	
