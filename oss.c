@@ -48,9 +48,9 @@ void* logchildcreate(void* args);
 // message listener
 void* msgthread(void* args);
 // initiators
+int initsemaphores(int semid);
 int initsighandlers();
 oss_clock_t* initsharedmemory(int shmid);
-int initsemaphores(int semid);
 //print usage/error
 void printusage();
 void printopterr(char optopt);
@@ -75,9 +75,11 @@ main (int argc, char** argv)
 		switch(c)
 		{
 		case 'h':
+			// -h => help
 			printusage();
 			return 0;
 		case 's':
+			// -s <max # children>
 			maxslaves = atoi(optarg);	
 			// increase this when you implement child limiter 
 			if (maxslaves < 1 || maxslaves > 100) {
@@ -88,6 +90,7 @@ main (int argc, char** argv)
 			}
 			break;
 		case 'l':
+			// -l <filename>
 			if (isalpha(optarg[0])) {
 				fname = optarg;
 				break;
@@ -97,6 +100,7 @@ main (int argc, char** argv)
 			printusage();
 			return 1;	
 		case 't':
+			// -t <timeout>
 			timeout	= atoi(optarg);
 			if (timeout < 1 || timeout > 1000) {
 				char* m0 = "z must be from 1-1000.";
@@ -106,15 +110,16 @@ main (int argc, char** argv)
 			}
 			break;
 		case '?':
+			// unknown or misused option
 			printopterr(optopt);
 			printusage();
 		return 1;
 		default:
 			return 1;
 		}
-	}
+	} // done getting options
 
-	// get key from file
+	// get keys from file
 	key_t mkey, skey, shmkey;
 	mkey = ftok(KEYPATH, MSG_ID);
 	skey = ftok(KEYPATH, SEM_ID);
@@ -125,15 +130,17 @@ main (int argc, char** argv)
 	}
 
 	/************** Set up signal handler ********/
+	// handles SIGINT & SIGALRM
 	if (initsighandlers() == -1) {
 		perror("OSS: Failed to set up signal handlers.");
 		return 1;
 	}
 
 	/************** Set up semaphore *************/
-	// semaphore contains 3 sems:
-	// 0 = child file i/o lock
-	// 1 = log file (oss) i/o lock 
+	/*	 contains 3 sems:
+	 *	0 = child shared memory lock
+	 *	1 = log file (oss) i/o lock 
+	 *	2 = msg wait/signal 		     */
 	semid = getsemid(skey, 3);
 	if (semid == -1) {
 		perror("OSS: Failed to create semaphore.");
@@ -150,10 +157,28 @@ main (int argc, char** argv)
 	setsembuf(msgwait, 2, -1, 0);
 
 	/************** Set up message queue *********/
-	// Initiate message queue	
+	/* Messages are sent by child when they expire.
+	 * Parent (oss) waits for child to signal on sem 2.
+	 * After spawning original children, parent creates
+	 * a thread to listen for new message. */
 	int msgid = getmsgid(mkey);
 	if (msgid == -1) {
 		perror("OSS: Failed to create message queue.");
+		return 1;
+	}
+
+	/************** Set up shared memory *********/
+	// A pointer to type oss_clock_t is stored in shared memory. 
+	// oss_clock_t contains: { int sec, int nsec }.
+	int shmid = getclockshmid(shmkey);
+	if (shmid == -1) {
+		perror("OSS: Failed to create shared memory segment.");
+		return 1;
+	}	
+	oss_clock_t* clock;
+	clock = initsharedmemory(shmid); 
+	if (clock == (void*)-1) {
+		perror("OSS: Failed to attach shared memory.");	
 		return 1;
 	}
 
@@ -164,31 +189,20 @@ main (int argc, char** argv)
 		return 1;
 	}
 
-	/************** Set up shared memory *********/
-	int shmid = getclockshmid(shmkey);
-	oss_clock_t* clock;
-	if (shmid == -1) {
-		perror("OSS: Failed to create shared memory segment.");
-		return 1;
-	}	
-	clock = initsharedmemory(shmid); 
-	if (clock == (void*)-1) {
-		perror("OSS: Failed to attach shared memory.");	
-		return 1;
-	}
 
 	// begin timeout alarm
 	alarm(timeout);
 
 	/****************** Spawn Children ***********/
-	// make child
+	// Up to 19 children are spawned at once here
+	// Any more are created later in parent code block.
 	long cpid;
 	int childcount = 0;
 	int term = (maxslaves < 19) ? maxslaves : 19;
 	while (childcount < term)
 	{
 		// spawn new child
-		// child executes child program
+		// executes child program
 		cpid = spawnchild(logf);
 		if (cpid == -1)	
 			break; // failed to create child
@@ -204,33 +218,44 @@ main (int argc, char** argv)
 		}
 	}
 
-	
 	/***************** Parent *****************/
+	/* The parent code block begins by starting the 
+	 * internal clock thread followed by the
+	 * message listening thread. These threads allow
+	 * parent to wait for children without interrupting
+	 * program flow.
+	 * It then enters a loop which waits for a child to
+	 * terminate, and spawns another one if necessary.
+	 */
 	if (cpid > 0) {
 		// say when parent enters this section
 		fprintf(stderr, "OSS: In parent code block.\n");
 		dprintf(logf, "OSS: In parent code block.\n");
+		/******* start system clock thread *****/
+		// this way clock does not pause when waiting
+		pthread_t ctid;
+		int e = pthread_create(&ctid, NULL, systemclock, (void*)clock);
+		if (e) {
+			char* m0 = "Failed to create clock thread.";
+			fprintf(stderr, "OSS: %s\n", m0);
+			return 1;
+		}
+		/**** start message listener thread ****/
+		// t_params contiain messageq id and logfile descriptor
 		int t_params[2];
 		t_params[0] = msgid;
 		t_params[1] = logf;
-		// start message listener thread
 		pthread_t tid;
-		int e = pthread_create(&tid, NULL, msgthread, t_params);
+		e = pthread_create(&tid, NULL, msgthread, (void*)t_params);
 		if (e) {
-			fprintf(stderr, "OSS: Failed to create msg listener\n");
-			return 1;
-		}
-		// start system clock thread
-		pthread_t ctid;
-		e = pthread_create(&ctid, NULL, systemclock, clock);
-		if (e) {
-			fprintf(stderr, "OSS: Failed to create clock thread.\n");
+			char* m0 = "Failed to create msg listener.";
+			fprintf(stderr, "OSS: %s\n", m0);
 			return 1;
 		}
 		// The PARENT LOOP
 		// continuously adds children until:
-		// * the clock has reached 2 s
-		// * 100 children have been spawned
+		// > the clock has reached 2 s
+		// > 100 children have been spawned
 		while (clock->sec < 2 && childcount < 100)
 		{
 			if (childcount > 19) {
@@ -249,35 +274,34 @@ main (int argc, char** argv)
 			if (errno == ECHILD)
 				break;
 		}
-
-
-		/***************8 add mutex here and log this stuff **/
-
-		fprintf(stderr, "OSS: All children accounted for\n");
-		// wait until clock is finished to close everything
-		// lets message thread deal with its queue
-		/************ try to get rid of this, set up semaphore */
+		/* wait until clock is finished to close everything
+		 * with pthread_join( "clock thread id" );
+		 * lets message thread deal with its queue */
 		if (pthread_join(ctid, NULL) != 0) {
 			perror("OSS: Failed to join clock thread.");
 			return 1;
 		}
-		//while (clock->sec < 2) {};
-		
-		fprintf(stderr, "OSS: Internal clock reached 2s.\n");
-		fprintf(stderr, "OSS: Filename for log: %s\n", fname);
-		fprintf(stderr, "OSS: Message thread closed.\n");
-		// close listening thread
+		// close message listening thread and logfile
 		pthread_cancel(tid);
+
+		fprintf(stderr, "OSS: All children accounted for\n");
+		dprintf(logf, "OSS: All children accounted for\n");
+		fprintf(stderr, "OSS: Internal clock reached 2s.\n");
+		dprintf(logf, "OSS: Internal clock reached 2s.\n");
+		fprintf(stderr, "OSS: Filename for log: %s\n", fname);
+		dprintf(logf, "OSS: Filename for log: %s\n", fname);
+		fprintf(stderr, "OSS: Message thread closed.\n");
+		dprintf(logf, "OSS: Message thread closed.\n");
 		close(logf);
+		// clean up IPC
 		if (removeshmem(msgid, semid, shmid, clock) == -1) {
 			// failed to remove shared mem segment
 			perror("OSS: Failed to remove shared memory.");
 			return 1;
 		}
-		fprintf(stderr, "OSS: Done. PID=%ld\n", (long)getpgid(getpid()));
+		fprintf(stderr, "OSS: Done. %ld\n",(long)getpgid(getpid()));
 	}	
 	return 0;	
-
 }
 
 // updates internal system clock
@@ -381,7 +405,7 @@ msgthread(void* args)
 			perror("MSGTHREAD: Failed to wait for message.");
 			pthread_exit(NULL);
 		}
-		// sleep for 3000 microseconds, gives spawnLOG more time
+		// sleep for 1000 microseconds, gives spawnLOG more time
 		usleep(1000);
 		// wait until your turn
 		if (semop(semid, mutex, 1) == -1) {
@@ -411,6 +435,31 @@ msgthread(void* args)
 	return NULL;	
 }
 
+// initialize semaphores, return -1 on error
+int
+initsemaphores(int semid)
+{
+	// set up child shm read lock
+	if (initelement(semid, 0, 1) == -1) {
+		if (semctl(semid, 0, IPC_RMID) == -1)
+			return -1;
+		return -1;
+	}
+	// set up log file i/o lock
+	if (initelement(semid, 1, 1) == -1) {
+		if (semctl(semid, 0, IPC_RMID) == -1)
+			return -1;
+		return -1;
+	}
+	// set up message queue lock
+	if (initelement(semid, 2, 1) == -1) {
+		if (semctl(semid, 0, IPC_RMID) == -1)
+			return -1;
+		return -1;
+	}
+	return 0;
+}
+
 // initialize signal handlers, return -1 on error
 int
 initsighandlers()
@@ -447,31 +496,6 @@ initsharedmemory(int shmid)
 	clock->sec = 0;
 	clock->nsec = 0;
 	return clock;
-}
-
-// initialize semaphores, return -1 on error
-int
-initsemaphores(int semid)
-{
-	// set up child shm read lock
-	if (initelement(semid, 0, 1) == -1) {
-		if (semctl(semid, 0, IPC_RMID) == -1)
-			return -1;
-		return -1;
-	}
-	// set up file i/o lock
-	if (initelement(semid, 1, 1) == -1) {
-		if (semctl(semid, 0, IPC_RMID) == -1)
-			return -1;
-		return -1;
-	}
-	// set up message queue lock
-	if (initelement(semid, 2, 1) == -1) {
-		if (semctl(semid, 0, IPC_RMID) == -1)
-			return -1;
-		return -1;
-	}
-	return 0;
 }
 
 // when the user dun goofs

@@ -111,7 +111,7 @@ main (int argc, char** argv)
 	int quantum = rand() % 1000000 + 1;
 	oss_clock_t endt = calcendtime(clock, quantum);
 	int expiry = 0; // flag for done
-	fprintf(stderr, "CHILD: %ld endtime:%d, %d\n", pid, endt.sec, endt.nsec);
+	fprintf(stderr,"CHILD: %ld endtime:%d,%d\n",pid,endt.sec,endt.nsec);
 	
 	// begin looping over critical section
 	// where each child checks the clock in shmem
