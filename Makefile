@@ -20,4 +20,4 @@ child: $(OBJECTS)
 $(OBJECTS): sighandler.h ipchelper.h filehelper.h
 
 clean:
-	$(RM) $(OBJECTS) *.o *.log oss child
+	$(RM) $(OBJECTS) *.o *log oss child

@@ -1,8 +1,11 @@
 /*
-$Id: sighandler.c,v 1.2 2017/10/10 20:18:50 o1-hester Exp $
-$Date: 2017/10/10 20:18:50 $
-$Revision: 1.2 $
+$Id: sighandler.c,v 1.3 2017/10/11 20:32:12 o1-hester Exp $
+$Date: 2017/10/11 20:32:12 $
+$Revision: 1.3 $
 $Log: sighandler.c,v $
+Revision 1.3  2017/10/11 20:32:12  o1-hester
+turnin
+
 Revision 1.2  2017/10/10 20:18:50  o1-hester
 bug fix
 
@@ -38,11 +41,10 @@ catchctrlc(int signo)
 		if (errno == ECHILD)
 			break;
 	}
-
+	// KILL 'EM ALL, no whammies
 	kill(pgid, SIGKILL);
 	pthread_exit(NULL);
 	exit(1);
-	//sleep(2);
 }
 
 // Handler for SIGALRM

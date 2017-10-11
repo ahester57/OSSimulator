@@ -1,8 +1,11 @@
 /*
-$Id: ipchelper.c,v 1.2 2017/10/10 20:18:18 o1-hester Exp $
-$Date: 2017/10/10 20:18:18 $
-$Revision: 1.2 $
+$Id: ipchelper.c,v 1.3 2017/10/11 20:32:12 o1-hester Exp o1-hester $
+$Date: 2017/10/11 20:32:12 $
+$Revision: 1.3 $
 $Log: ipchelper.c,v $
+Revision 1.3  2017/10/11 20:32:12  o1-hester
+turnin
+
 Revision 1.2  2017/10/10 20:18:18  o1-hester
 bug fix
 
@@ -34,7 +37,7 @@ initelement(int semid, int semnum, int semval)
 	return semctl(semid, semnum, SETVAL, arg);
 }
 
-// creates semaphores, returns -1 on error and semid on success
+// creates semaphore set, returns -1 on error and semid on success
 int
 getsemid(key_t skey, int nsems)
 {
@@ -75,7 +78,7 @@ getclockshmidreadonly(key_t shmkey)
 	return shmget(shmkey, sizeof(oss_clock_t), RPERM);
 }
 
-// attach shared memory segment
+// attach system clock to shared memory segment, return -1 on error
 oss_clock_t*
 attachshmclock(int shmid)
 {
@@ -120,6 +123,7 @@ sendmessage(int msgid, long pid, oss_clock_t endtime, oss_clock_t* clock)
 	if (t_m == NULL) {
 		return -1;
 	}
+	// This message holds: child pid, termination time, and expiry time
 	sprintf(t_m,"%s%ld%s%d.%d%s%d.%d%s",m0,pid,m1,t0,t1,m2,et0,et1,m3);
 	mymsg->mtype = 1;
 	memcpy(mymsg->mtext, t_m, LINESIZE);
@@ -143,14 +147,14 @@ getmessage(int msgid, mymsg_t* msg)
 	return sz;
 }
 
-// destroy message queue segment
+// destroy message queue segment, return -1 on error
 int
 removeMsgQueue(int msgid)
 {
 	return msgctl(msgid, IPC_RMID, NULL);
 }
 
-// Remove shared memory segments
+// Remove shared memory segments, return -1 on error
 int
 removeshmem(int msgid, int semid, int shmid, void* shmaddr)
 {
@@ -164,17 +168,20 @@ removeshmem(int msgid, int semid, int shmid, void* shmaddr)
 	if (shmaddr == (void*)-1)
 		shmaddr = shm_addr;
 	// Kill message queue
-	char* msg = "Killing msgqueue.\n";
-	write(STDERR_FILENO, msg, 18);
+	char* msg = "IPC: Killing msgqueue.\n";
+	write(STDERR_FILENO, msg, 23);
 	if (removeMsgQueue(msgid) == -1) {
 		error = errno;
 	}
 	// kill semaphore set
-	msg = "Killing semaphore set.\n";
-	write(STDERR_FILENO, msg, 23);
+	msg = "IPC: Killing semaphore set.\n";
+	write(STDERR_FILENO, msg, 28);
 	if (semctl(semid, 0, IPC_RMID) == -1) {
 		error = errno;
 	}
+	// kill semaphore set
+	msg = "IPC: Killing shared memory segments.\n";
+	write(STDERR_FILENO, msg, 37);
 	if (detachandremove(shmid, shmaddr) == -1) {
 		error = errno;
 	}
@@ -183,7 +190,7 @@ removeshmem(int msgid, int semid, int shmid, void* shmaddr)
 	return 0;
 }
 
-// Detaches and removes shared memory
+// Detaches and removes shared memory, return -1 on error
 int
 detachandremove(int shmid, void* shmaddr)
 {

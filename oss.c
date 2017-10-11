@@ -1,8 +1,11 @@
 /*
-$Id: oss.c,v 1.4 2017/10/10 20:19:07 o1-hester Exp o1-hester $
-$Date: 2017/10/10 20:19:07 $
-$Revision: 1.4 $
+$Id: oss.c,v 1.5 2017/10/11 20:32:12 o1-hester Exp o1-hester $
+$Date: 2017/10/11 20:32:12 $
+$Revision: 1.5 $
 $Log: oss.c,v $
+Revision 1.5  2017/10/11 20:32:12  o1-hester
+turnin
+
 Revision 1.4  2017/10/10 20:19:07  o1-hester
 threading
 
@@ -17,6 +20,13 @@ Initial revision
 
 $Author: o1-hester $
 */
+/* 	Austin Hester
+ * 	10/11/17
+ * 	CS 4760 - Operating Systems
+ * 	Sanjiv Bhatia
+ * 	University of Missouri - St. Louis
+ * 	Operating System Simulator
+ */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -234,7 +244,8 @@ main (int argc, char** argv)
 		/******* start system clock thread *****/
 		// this way clock does not pause when waiting
 		pthread_t ctid;
-		int e = pthread_create(&ctid, NULL, systemclock, (void*)clock);
+		int e;
+		e = pthread_create(&ctid, NULL, systemclock, (void*)clock);
 		if (e) {
 			char* m0 = "Failed to create clock thread.";
 			fprintf(stderr, "OSS: %s\n", m0);
@@ -281,17 +292,18 @@ main (int argc, char** argv)
 			perror("OSS: Failed to join clock thread.");
 			return 1;
 		}
-		// close message listening thread and logfile
+		// close message listening thread
 		pthread_cancel(tid);
 
 		fprintf(stderr, "OSS: All children accounted for\n");
 		dprintf(logf, "OSS: All children accounted for\n");
 		fprintf(stderr, "OSS: Internal clock reached 2s.\n");
 		dprintf(logf, "OSS: Internal clock reached 2s.\n");
-		fprintf(stderr, "OSS: Filename for log: %s\n", fname);
-		dprintf(logf, "OSS: Filename for log: %s\n", fname);
 		fprintf(stderr, "OSS: Message thread closed.\n");
 		dprintf(logf, "OSS: Message thread closed.\n");
+		fprintf(stderr, "OSS: Filename for log: %s\n", fname);
+		dprintf(logf, "OSS: Filename for log: %s\n", fname);
+		// close log file
 		close(logf);
 		// clean up IPC
 		if (removeshmem(msgid, semid, shmid, clock) == -1) {
@@ -343,6 +355,7 @@ spawnchild(int logfile)
 		return -1; // if error
 	}
 	// parent makes thread to write to file
+	// Logging done in thread due to mutual exclusion
 	pthread_t ltid;
 	long t_params[2];
 	t_params[0] = cpid;
@@ -407,6 +420,7 @@ msgthread(void* args)
 		}
 		// sleep for 1000 microseconds, gives spawnLOG more time
 		usleep(1000);
+
 		// wait until your turn
 		if (semop(semid, mutex, 1) == -1) {
 			perror("MSGTHREAD: Failed to lock logfile.");
@@ -429,12 +443,15 @@ msgthread(void* args)
 			perror("MSGTHREAD: Failed to unlock logfile.");
 			pthread_exit(NULL);	
 		}
-		//wait(NULL);
 		pthread_testcancel();
 	}
 	return NULL;	
 }
 
+/***** NOTE about semaphores *****/
+/* I do NOT log every time sem is waited on
+ * and acquired. That would be ridiculous. Thanks. */ 
+
 // initialize semaphores, return -1 on error
 int
 initsemaphores(int semid)

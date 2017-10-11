@@ -1,8 +1,11 @@
 /*
-$Id: child.c,v 1.4 2017/10/10 20:19:24 o1-hester Exp o1-hester $
-$Date: 2017/10/10 20:19:24 $
-$Revision: 1.4 $
+$Id: child.c,v 1.5 2017/10/11 20:32:12 o1-hester Exp o1-hester $
+$Date: 2017/10/11 20:32:12 $
+$Revision: 1.5 $
 $Log: child.c,v $
+Revision 1.5  2017/10/11 20:32:12  o1-hester
+turnin
+
 Revision 1.4  2017/10/10 20:19:24  o1-hester
 cleanup
 
@@ -36,14 +39,17 @@ struct sembuf mutex[2];
 struct sembuf msgsignal[1];
 
 oss_clock_t calcendtime(oss_clock_t* clock, int quantum);
+int sem_wait();
+int sem_signal();
 int initsighandler();
 
-// explain
+// Child process spawn by oss 
+// Each child picks a number between 1-1000000
+// It adds this to the current time
 int
 main (int argc, char** argv)
 {
-	
-	// get key from file
+	// get keys from file
 	key_t mkey, skey, shmkey;
 	mkey = ftok(KEYPATH, MSG_ID);
 	skey = ftok(KEYPATH, SEM_ID);
@@ -60,6 +66,7 @@ main (int argc, char** argv)
 	}
 
 	/***************** Set up shared memory *******/
+	// Child has read-only permissions on shm
 	int shmid = getclockshmidreadonly(shmkey);
 	oss_clock_t* clock;
 	if (shmid == -1) {
@@ -72,7 +79,7 @@ main (int argc, char** argv)
 		return 1;
 	}
 
-	/***************** Set up semaphore ************/
+	/***************** Set up semaphores ***********/
 	semid = semget(skey, 2, PERM);
 	if (semid == -1) {
 		if (errno == EIDRM) {
@@ -99,34 +106,45 @@ main (int argc, char** argv)
 		perror("CHILD: Failed to create message queue.");
 		return 1;
 	}
-
 	
 	// seed random 
 	struct timespec tm;
 	clock_gettime(CLOCK_MONOTONIC, &tm);
 	srand((unsigned)(tm.tv_sec ^ tm.tv_nsec ^ (tm.tv_nsec >> 31)));
 
-	// initialize all the following stuff
-	long pid = (long)getpid();
-	int quantum = rand() % 1000000 + 1;
-	oss_clock_t endt = calcendtime(clock, quantum);
 	int expiry = 0; // flag for done
+	long pid = (long)getpid();
+	
+	// initialize endtime 
+	int quantum = rand() % 1000000 + 1;
+
+	// get exclusive access while reading
+	if (sem_wait() == -1) {
+		// failed to lock shm
+		return 1;
+	}
+
+	// calculate endtime, reading from shared memory
+	oss_clock_t endt = calcendtime(clock, quantum);
+
+	// let others read from shared memory
+	if (sem_signal() == -1) { 		
+		return 1;
+	}
+
+	// output endtime to stderr
 	fprintf(stderr,"CHILD: %ld endtime:%d,%d\n",pid,endt.sec,endt.nsec);
 	
+	/**************** Child loop **************/
 	// begin looping over critical section
 	// where each child checks the clock in shmem
 	while (!expiry)
 	{	
 	/************ Entry section ***************/	
-	//fprintf(stderr, "im in entry section\n.");
 	// wait until your turn
-	if (semop(semid, mutex, 1) == -1) {
-		if (errno == EIDRM) {
-			perror("CHILD: Interrupted");
-			return 1;
-		}
-		perror("CHILD: Failed to lock shared memory.");
-		return 1;	
+	if (sem_wait() == -1) {
+		// failed to lock shm
+		return 1;
 	}
 	// Block all signals during critical section
 	sigset_t newmask, oldmask; 	
@@ -141,20 +159,20 @@ main (int argc, char** argv)
 		// child's time is up
 		expiry = 1;
 		sendmessage(msgid, pid, endt, clock);
+		// signal parent that a new message is available
 		if (semop(semid, msgsignal, 1) == -1) {
 			perror("CHILD: Failed to signal parent.");
 			return 1;	
 		}
 	}
 	/*********** Exit section **************/
-	// unlock file
-	if (semop(semid, mutex+1, 1) == -1) { 		
+	// unlock shared memory read 
+	if (sem_signal() == -1) { 		
 		if (errno == EINVAL) {
 			char* m0 = "finished critical section after signal";
 			fprintf(stderr, "CHILD: %ld %s\n", pid, m0);
 			return 1;
 		}
-		perror("CHILD: Failed to unlock semid.");
 		return 1;
 	}
 	// Unblock signals after critical sections
@@ -186,6 +204,36 @@ calcendtime(oss_clock_t* clock, int quantum)
 	endtime.sec = s;
 	endtime.nsec = ns;
 	return endtime;	
+}
+
+/***** NOTE about semaphores *****/
+/* I do NOT log every time sem is waited on
+ * and acquired. That would be ridiculous. Thanks. */ 
+
+// Semaphore blocking wait, return -1 on error
+int
+sem_wait()
+{
+	if (semop(semid, mutex, 1) == -1) {
+		if (errno == EIDRM) {
+			perror("CHILD: Interrupted");
+			return -1;
+		}
+		perror("CHILD: Failed to lock shared memory.");
+		return -1;	
+	}
+	return 0;
+}
+
+// Semaphore signal, return -1 on error
+int
+sem_signal()
+{
+	if (semop(semid, mutex+1, 1) == -1) { 		
+		perror("CHILD: Failed to unlock semid.");
+		return -1;
+	}
+	return 0;
 }
 
 // initialize signal handler, return -1 on error
