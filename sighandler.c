@@ -1,5 +1,5 @@
 /*
-$Id: sighandler.c,v 1.3 2017/10/11 20:32:12 o1-hester Exp $
+$Id: sighandler.c,v 1.3 2017/10/11 20:32:12 o1-hester Exp o1-hester $
 $Date: 2017/10/11 20:32:12 $
 $Revision: 1.3 $
 $Log: sighandler.c,v $

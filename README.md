@@ -1,12 +1,14 @@
-## Operating System Simulator 
+# Operating System Simulator 
+## Process Scheduling
+
 
 ### Austin Hester  
 ##### University of Missouri - St. Louis  
 ##### CS4760 - Operating Systems 
 ##### Sanjiv Bhatia  
 
-This project is to familiarize yourself with semaphores,  
-however, I have used it to familiarize myself with threads.
+This project is to simulate the process scheduling part of an 
+operating system. We are to implement a time-based system.  
 
 Since we were to increment the clock in a loop in which we  
 are also supposed to receive messages and spawn new children,  
