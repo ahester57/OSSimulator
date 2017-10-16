@@ -7,6 +7,8 @@
 ##### CS4760 - Operating Systems 
 ##### Sanjiv Bhatia  
 
+OSSimulator continued.
+
 This project is to simulate the process scheduling part of an 
 operating system. We are to implement a time-based system.  
 
