@@ -26,6 +26,7 @@ $Author: o1-hester $
 #include <sys/sem.h>
 #include <sys/msg.h>
 #include <sys/stat.h>
+#include "osstypes.h"
 #define PERM (S_IRUSR | S_IWUSR)
 #define RPERM (S_IRUSR)
 #define KEYPATH "./ipchelper.h"
@@ -33,17 +34,6 @@ $Author: o1-hester $
 #define MSG_ID 5879785 
 #define SEM_ID 3490943 
 #define LINESIZE 256
-
-// for message queues
-typedef struct {
-	int mtype;
-	char mtext[LINESIZE];
-} mymsg_t;
-
-typedef struct {
-	int sec;
-	int nsec;
-} oss_clock_t;
 
 int initelement(int semid, int semnum, int semval);
 int getsemid(key_t skey, int nsems);

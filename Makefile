@@ -17,7 +17,7 @@ oss: $(OBJECTS)
 
 child: $(OBJECTS)
 
-$(OBJECTS): sighandler.h ipchelper.h filehelper.h
+$(OBJECTS): sighandler.h ipchelper.h filehelper.h osstypes.h
 
 clean:
 	$(RM) $(OBJECTS) *.o *log oss child

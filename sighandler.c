@@ -18,6 +18,7 @@ $Author: o1-hester $
 #include <unistd.h>
 #include <pthread.h>
 #include <sys/wait.h>
+#include "osstypes.h"
 #include "ipchelper.h"
 #include "sighandler.h"
 

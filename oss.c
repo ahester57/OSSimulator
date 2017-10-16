@@ -39,6 +39,7 @@ $Author: o1-hester $
 #include <sys/msg.h>
 #include <sys/ipc.h>
 #include <sys/types.h>
+#include "osstypes.h"
 #include "ipchelper.h"
 #include "sighandler.h"
 #include "filehelper.h"

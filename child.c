@@ -27,6 +27,7 @@ $Author: o1-hester $
 #include <string.h>
 #include <ctype.h>
 #include <time.h>
+#include "osstypes.h"
 #include "ipchelper.h"
 #include "sighandler.h"
 #include "filehelper.h"
