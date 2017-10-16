@@ -37,6 +37,7 @@ where
 `filename` is the name of log file,  
 `z` is timeout (seconds).
 
+Simulates a process scheduler.  
 Keeps track of an internal system clock in shared memory (POSIX).  
 
 Uses threads to:  
