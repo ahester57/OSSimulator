@@ -149,7 +149,7 @@ getmessage(int msgid, mymsg_t* msg)
 
 // destroy message queue segment, return -1 on error
 int
-removeMsgQueue(int msgid)
+removemsgqueue(int msgid)
 {
 	return msgctl(msgid, IPC_RMID, NULL);
 }
@@ -170,7 +170,7 @@ removeshmem(int msgid, int semid, int shmid, void* shmaddr)
 	// Kill message queue
 	char* msg = "IPC: Killing msgqueue.\n";
 	write(STDERR_FILENO, msg, 23);
-	if (removeMsgQueue(msgid) == -1) {
+	if (removemsgqueue(msgid) == -1) {
 		error = errno;
 	}
 	// kill semaphore set

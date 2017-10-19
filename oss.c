@@ -21,11 +21,12 @@ Initial revision
 $Author: o1-hester $
 */
 /* 	Austin Hester
- * 	10/11/17
+ * 	10/25/17
  * 	CS 4760 - Operating Systems
  * 	Sanjiv Bhatia
  * 	University of Missouri - St. Louis
  * 	Operating System Simulator
+ * 	Assignment 4 - Process Scheduling
  */
 
 #include <stdio.h>
@@ -49,6 +50,9 @@ $Author: o1-hester $
 int semid;
 struct sembuf mutex[2];
 struct sembuf msgwait[1];
+// process cntl blocks
+/********* Change to linked list ******/
+pxs_cntl_block_t pxscntlblock[18];
 
 // clock
 void updateclock(oss_clock_t* clock);
