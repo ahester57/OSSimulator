@@ -20,18 +20,19 @@ typedef struct
 // process control block
 typedef struct
 {
+	unsigned int proc_id;
 	unsigned int used_cpu_time;
 	unsigned int system_total_time;
 	unsigned int last_burst_time;
 	unsigned int priority;
-} pxs_cntl_block_t;
+} pxs_cb_t;
 
 // dispatched process
 typedef struct 
 {
 	unsigned int proc_id;
 	unsigned int quantum;
-} dispatch_pxs_t;
+} pxs_id_t;
 
 
 #endif

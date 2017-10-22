@@ -44,17 +44,21 @@ $Author: o1-hester $
 #include "ipchelper.h"
 #include "sighandler.h"
 #include "filehelper.h"
+#include "procsched.h"
+#include "proccntl.h"
 #define FILEPERMS (O_WRONLY | O_TRUNC | O_CREAT)
-#define MAXPROCESSES 18
+//#define MAXPROCESSES 18
 
 // id and operations for semaphores
 int semid;
 struct sembuf mutex[2];
 struct sembuf msgwait[1];
 /********* Process Cntl Blocks ******/
-pxs_cntl_block_t pxscntlblock[MAXPROCESSES];
+pxs_cb_t pxscntlblock[MAXPROCESSES];
+pxs_id_t currentpxs[MAXPROCESSES];
 // block representing free(open) pxs_cntl_block
-static pxs_cntl_block_t openblock = {-1, -1, -1, -1};
+static pxs_cb_t openblock = {-1, -1, -1, -1, -1};
+static pxs_id_t openpxsid = {-1, -1};
 
 // clock
 void updateclock(oss_clock_t* clock);
@@ -67,7 +71,7 @@ void* msgthread(void* args);
 // initiators
 int initsemaphores(int semid);
 int initsighandlers();
-oss_clock_t* initsharedmemory(int shmid);
+oss_clock_t* initsharedclock(int shmid);
 //print usage/error
 void printusage();
 void printopterr(char optopt);
@@ -193,7 +197,7 @@ main (int argc, char** argv)
 		return 1;
 	}	
 	oss_clock_t* clock;
-	clock = initsharedmemory(shmid); 
+	clock = initsharedclock(shmid); 
 	if (clock == (void*)-1) {
 		perror("OSS: Failed to attach shared memory.");	
 		return 1;
@@ -203,7 +207,9 @@ main (int argc, char** argv)
 	int i;
 	for (i = 0; i < MAXPROCESSES; i++) {
 		pxscntlblock[i] = openblock;
+		currentpxs[i] = openpxsid;
 	}
+	initpriorityqueue();
 
 	/************** Open log file ****************/
 	int logf = open(fname, FILEPERMS, PERM);
@@ -215,6 +221,7 @@ main (int argc, char** argv)
 
 	// begin timeout alarm
 	alarm(timeout);
+
 
 	/****************** Spawn Children ***********/
 	// Up to 19 children are spawned at once here
@@ -324,6 +331,7 @@ main (int argc, char** argv)
 			perror("OSS: Failed to remove shared memory.");
 			return 1;
 		}
+		freequeue();
 		fprintf(stderr, "OSS: Done. %ld\n",(long)getpgid(getpid()));
 	}	
 	return 0;	
@@ -515,7 +523,7 @@ initsighandlers()
 
 // initialize shared memory, return -1 on error
 oss_clock_t*
-initsharedmemory(int shmid)
+initsharedclock(int shmid)
 {
 	oss_clock_t* clock;
 	clock = attachshmclock(shmid);
