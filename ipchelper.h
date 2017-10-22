@@ -44,7 +44,7 @@ oss_clock_t* attachshmclock(int shmid);
 void setsembuf(struct sembuf *s, int n, int op, int flg);
 int sendmessage(int msgid, long pid, oss_clock_t etime, oss_clock_t* clock);
 ssize_t getmessage(int msgid, mymsg_t* msg);
-int removeMsgQueue(int msgid);
+int removemsgqueue(int msgid);
 void setmsgid(int msgid);
 int removeshmem(int msgid, int semid, int shmid, void* shmaddr);
 int detachandremove(int shmid, void* shmaddr);

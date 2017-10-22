@@ -45,14 +45,16 @@ $Author: o1-hester $
 #include "sighandler.h"
 #include "filehelper.h"
 #define FILEPERMS (O_WRONLY | O_TRUNC | O_CREAT)
+#define MAXPROCESSES 18
 
 // id and operations for semaphores
 int semid;
 struct sembuf mutex[2];
 struct sembuf msgwait[1];
-// process cntl blocks
-/********* Change to linked list ******/
-pxs_cntl_block_t pxscntlblock[18];
+/********* Process Cntl Blocks ******/
+pxs_cntl_block_t pxscntlblock[MAXPROCESSES];
+// block representing free(open) pxs_cntl_block
+static pxs_cntl_block_t openblock = {-1, -1, -1, -1};
 
 // clock
 void updateclock(oss_clock_t* clock);
@@ -195,6 +197,12 @@ main (int argc, char** argv)
 	if (clock == (void*)-1) {
 		perror("OSS: Failed to attach shared memory.");	
 		return 1;
+	}
+
+	/********* Process control block vector  *****/
+	int i;
+	for (i = 0; i < MAXPROCESSES; i++) {
+		pxscntlblock[i] = openblock;
 	}
 
 	/************** Open log file ****************/
