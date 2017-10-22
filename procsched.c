@@ -51,7 +51,7 @@ decidequeue(pxs_cb_t process)
 int
 putinqueue(pxs_cb_t process, int qnum)
 {
-	int index = findfreeblock(qnum);
+	int index = findfreeblockqueue(qnum);
 	if (index == -1)
 		return -1;
 	queue[qnum][index] = process;
@@ -63,7 +63,7 @@ int
 removefromqueue(pxs_cb_t process)
 {
 	int qnum = process.priority;
-	int index = findprocessindex(process);
+	int index = findprocessindexqueue(process);
 	if (index == -1)
 		return -1;
 	queue[qnum][index] = openblock;	
@@ -72,7 +72,7 @@ removefromqueue(pxs_cb_t process)
 
 // returns index of given process, return -1 if not found
 int
-findprocessindex(pxs_cb_t process)
+findprocessindexqueue(pxs_cb_t process)
 {
 	int proc_id = process.proc_id;
 	int priority = process.proc_id;
@@ -88,7 +88,7 @@ findprocessindex(pxs_cb_t process)
 
 // returns 1st open block in q, return -1 if full
 int
-findfreeblock(int qnum)
+findfreeblockqueue(int qnum)
 {
 	int i;
 	for (i = 0; i < MAXPROCESSES; i++) {

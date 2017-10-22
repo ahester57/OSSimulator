@@ -2,6 +2,7 @@
 *.o
 *.out
 oss
+user
 child
 *.log
 default.log

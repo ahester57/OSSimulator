@@ -53,12 +53,6 @@ $Author: o1-hester $
 int semid;
 struct sembuf mutex[2];
 struct sembuf msgwait[1];
-/********* Process Cntl Blocks ******/
-pxs_cb_t pxscntlblock[MAXPROCESSES];
-pxs_id_t currentpxs[MAXPROCESSES];
-// block representing free(open) pxs_cntl_block
-static pxs_cb_t openblock = {-1, -1, -1, -1, -1};
-static pxs_id_t openpxsid = {-1, -1};
 
 // clock
 void updateclock(oss_clock_t* clock);
@@ -204,12 +198,16 @@ main (int argc, char** argv)
 	}
 
 	/********* Process control block vector  *****/
-	int i;
-	for (i = 0; i < MAXPROCESSES; i++) {
-		pxscntlblock[i] = openblock;
-		currentpxs[i] = openpxsid;
-	}
+	initprocesscntlblock();
 	initpriorityqueue();
+
+	pxs_cb_t* block = getprocesscntlblock();
+	// check if pxs control block successful
+	if (block == NULL) {
+		fprintf(stderr, "Failed to init process cntl block.\n");
+		return 1;
+	}
+	int i;
 
 	/************** Open log file ****************/
 	int logf = open(fname, FILEPERMS, PERM);
@@ -217,28 +215,31 @@ main (int argc, char** argv)
 		perror("OSS: Could not open log file:");
 		return 1;
 	}
-
 
 	// begin timeout alarm
 	alarm(timeout);
 
-
 	/****************** Spawn Children ***********/
-	// Up to 19 children are spawned at once here
+	// Up to 18 children are spawned at once here
 	// Any more are created later in parent code block.
-	long cpid;
+	long cpid = (long)getpid();
 	int childcount = 0;
 	int term = (maxslaves < 19) ? maxslaves : 19;
+	term = 18;
 	while (childcount < term)
 	{
+		putinblock(allocatenewprocess());
 		// spawn new child
 		// executes child program
-		cpid = spawnchild(logf);
-		if (cpid == -1)	
-			break; // failed to create child
+		//cpid = spawnchild(logf);
+		//if (cpid == -1)	
+		//	break; // failed to create child
 		childcount++;
 	}
 	
+	for (i = 0; i < MAXPROCESSES; i++)
+		fprintf(stderr, "%d\n", block[i].proc_id);
+
 	// If master fails at spawning children
 	if (cpid == -1) {
 		perror("OSS: Failed to create child.");
@@ -287,15 +288,17 @@ main (int argc, char** argv)
 		// continuously adds children until:
 		// > the clock has reached 2 s
 		// > 100 children have been spawned
+		childcount = 0;
 		while (clock->sec < 2 && childcount < 100)
 		{
 			if (childcount > 19) {
 				// don't have too many kids at once
 				wait(NULL);			
 			}
-			if (childcount < maxslaves) {
+			
+			if (childcount < MAXPROCESSES) {
 				//spawn new child
-				cpid = spawnchild(logf);
+				dispatchnextprocess();
 				childcount++;
 			}
 		}
@@ -332,6 +335,7 @@ main (int argc, char** argv)
 			return 1;
 		}
 		freequeue();
+		freeprocesscntlblock();
 		fprintf(stderr, "OSS: Done. %ld\n",(long)getpgid(getpid()));
 	}	
 	return 0;	
@@ -371,7 +375,7 @@ spawnchild(int logfile)
 	/***************** Child ******************/
 	if (cpid <= 0) {
 		// execute child
-		execl("./child", "child", (char*)NULL);
+		execl("./user", "user", (char*)NULL);
 		perror("OSS: Exec failure.");
 		return -1; // if error
 	}

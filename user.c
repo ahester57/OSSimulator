@@ -50,6 +50,7 @@ int initsighandler();
 int
 main (int argc, char** argv)
 {
+	unsigned int myid = atoi(argv[1]);
 	// get keys from file
 	key_t mkey, skey, shmkey;
 	mkey = ftok(KEYPATH, MSG_ID);
@@ -134,7 +135,7 @@ main (int argc, char** argv)
 	}
 
 	// output endtime to stderr
-	fprintf(stderr,"CHILD: %ld endtime:%d,%d\n",pid,endt.sec,endt.nsec);
+	fprintf(stderr,"USER: %d endtime:%d,%d\n",myid,endt.sec,endt.nsec);
 	
 	/**************** Child loop **************/
 	// begin looping over critical section
@@ -159,7 +160,7 @@ main (int argc, char** argv)
 		|| (endt.sec < clock->sec)) {
 		// child's time is up
 		expiry = 1;
-		sendmessage(msgid, pid, endt, clock);
+		sendmessage(msgid, myid, endt, clock);
 		// signal parent that a new message is available
 		if (semop(semid, msgsignal, 1) == -1) {
 			perror("CHILD: Failed to signal parent.");
