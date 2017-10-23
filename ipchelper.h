@@ -1,8 +1,11 @@
 /*
-$Id: ipchelper.h,v 1.2 2017/10/10 20:18:25 o1-hester Exp o1-hester $
-$Date: 2017/10/10 20:18:25 $
-$Revision: 1.2 $
+$Id: ipchelper.h,v 1.1 2017/10/23 07:27:24 o1-hester Exp o1-hester $
+$Date: 2017/10/23 07:27:24 $
+$Revision: 1.1 $
 $Log: ipchelper.h,v $
+Revision 1.1  2017/10/23 07:27:24  o1-hester
+Initial revision
+
 Revision 1.2  2017/10/10 20:18:25  o1-hester
 bug fix
 

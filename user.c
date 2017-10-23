@@ -1,8 +1,11 @@
 /*
-$Id: child.c,v 1.5 2017/10/11 20:32:12 o1-hester Exp o1-hester $
-$Date: 2017/10/11 20:32:12 $
-$Revision: 1.5 $
-$Log: child.c,v $
+$Id: user.c,v 1.1 2017/10/23 07:27:24 o1-hester Exp o1-hester $
+$Date: 2017/10/23 07:27:24 $
+$Revision: 1.1 $
+$Log: user.c,v $
+Revision 1.1  2017/10/23 07:27:24  o1-hester
+Initial revision
+
 Revision 1.5  2017/10/11 20:32:12  o1-hester
 turnin
 
@@ -38,6 +41,7 @@ $Author: o1-hester $
 int semid;
 struct sembuf mutex[2];
 struct sembuf msgsignal[1];
+struct sembuf dispatchsig[1];
 
 oss_clock_t calcendtime(oss_clock_t* clock, int quantum);
 int sem_wait();
@@ -89,7 +93,7 @@ main (int argc, char** argv)
 	}
 
 	/***************** Set up semaphores ***********/
-	semid = semget(skey, 3, PERM);
+	semid = semget(skey, 4, PERM);
 	if (semid == -1) {
 		if (errno == EIDRM) {
 			perror("CHILD: Interrupted");
@@ -105,6 +109,8 @@ main (int argc, char** argv)
 	setsembuf(mutex+1, 0, 1, 0);
 	// msgsignal for letting parent know when message is available
 	setsembuf(msgsignal, 2, 1, 0);
+	// for signaling parent to dispatch another guy
+	setsembuf(dispatchsig, 3, 1, 0);
 
 	/**************** Set up message queue *********/
 	// for writing
@@ -204,6 +210,10 @@ main (int argc, char** argv)
 		return 1;
 	} 
 	} // end while
+	if (semop(semid, dispatchsig, 1) == -1) {
+		perror("USER: Failed to signal dispatcher.");
+		return 1;
+	}
 	shmdt(dispatch);
 	shmdt(clock);
 

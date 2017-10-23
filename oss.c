@@ -1,8 +1,11 @@
 /*
-$Id: oss.c,v 1.5 2017/10/11 20:32:12 o1-hester Exp o1-hester $
-$Date: 2017/10/11 20:32:12 $
-$Revision: 1.5 $
+$Id: oss.c,v 1.1 2017/10/23 07:27:24 o1-hester Exp o1-hester $
+$Date: 2017/10/23 07:27:24 $
+$Revision: 1.1 $
 $Log: oss.c,v $
+Revision 1.1  2017/10/23 07:27:24  o1-hester
+Initial revision
+
 Revision 1.5  2017/10/11 20:32:12  o1-hester
 turnin
 
@@ -53,6 +56,7 @@ $Author: o1-hester $
 int semid;
 struct sembuf mutex[2];
 struct sembuf msgwait[1];
+struct sembuf dispatchwait[1];
 
 int sumtoreach;
 int sumnow;
@@ -167,8 +171,9 @@ main (int argc, char** argv)
 	/*	 contains 3 sems:
 	 *	0 = child shared memory lock
 	 *	1 = log file (oss) i/o lock 
-	 *	2 = msg wait/signal 		     */
-	semid = getsemid(skey, 3);
+	 *	2 = msg wait/signal 		     
+	 *	3 = dispatch			*/
+	semid = getsemid(skey, 4);
 	if (semid == -1) {
 		perror("OSS: Failed to create semaphore.");
 		return 1;
@@ -182,6 +187,8 @@ main (int argc, char** argv)
 	setsembuf(mutex+1, 1, 1, 0);
 	// msgwait for message queues
 	setsembuf(msgwait, 2, -1, 0);
+	// for dispatching processes
+	setsembuf(dispatchwait, 3, -1, 0);
 
 	/************** Set up message queue *********/
 	/* Messages are sent by child when they expire.
@@ -326,17 +333,22 @@ main (int argc, char** argv)
 				}
 				fprintf(stderr, "next guy\n");
 				int ran = (int)(rand()) % 3;
-				if (ran == 0) {
-					if (childcount > 1)
-						wait(NULL);
-					usleep(5000000);
-				}
 				nextuser += ran;
 				//spawn new child
 				dispatchnextprocess(dispatch);
 				fprintf(stderr, "time: %d\n", clock->sec);
 				fprintf(stderr, "dch:\t %d\n", dispatch->proc_id);
 				childcount++;
+				if (ran == 0) {
+					usleep(50000);
+				}
+				if (childcount == MAXPROCESSES)
+					break;
+				fprintf(stderr, "asdfasdf\n");
+				if (semop(semid, dispatchwait, 1) == -1) {
+					perror("OSS: Dispatch fail.");
+					return 1;
+				}
 			}
 		}
 		/*
@@ -355,11 +367,11 @@ main (int argc, char** argv)
 			dispatchprocess(dispatch, i);
 			usleep(50000);
 		}
-		while (wait(NULL))
-		{
-			if (errno == ECHILD)
-				break;
-		}
+		//while (wait(NULL))
+		//{
+		//	if (errno == ECHILD)
+		//		break;
+		//}
 		/* wait until clock is finished to close everything
 		 * with pthread_join( "clock thread id" );
 		 * lets message thread deal with its queue */
@@ -401,7 +413,7 @@ updateclock(oss_clock_t* clock)
 {
 	if (clock == NULL)
 		return;
-	clock->nsec += 25;
+	clock->nsec += 100;
 	if (clock->nsec >= 1000000000) {
 		clock->sec += 1;
 		clock->nsec = 0;
@@ -580,6 +592,12 @@ initsemaphores(int semid)
 			return -1;
 		return -1;
 	}
+	// set up dispatch lock
+	if (initelement(semid, 3, 0) == -1) {
+		if (semctl(semid, 0, IPC_RMID) == -1)
+			return -1;
+		return -1;
+	}
 	return 0;
 }
 
@@ -631,7 +649,7 @@ initshareddispatch(const int shmid)
 		// failed to init shm
 		return (void*)-1;
 	}
-	dispatch->proc_id = 10;
+	dispatch->proc_id = -1;
 	dispatch->quantum = 100000;
 	return dispatch;
 }
