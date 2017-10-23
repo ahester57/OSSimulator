@@ -46,8 +46,8 @@ catchctrlc(int signo)
 	}
 	removeshmem(-1, -1, -1, (void*)-1);
 	// KILL 'EM ALL, no whammies
-	pthread_exit(NULL);
 	kill(pgid, SIGKILL);
+	pthread_exit(NULL);
 	exit(1);
 }
 
@@ -56,12 +56,20 @@ void
 handletimer(int signo)
 {
 	alarmhappened = 1;
-	char* msg = "Alarm occured. Time to kill children.\n";
-	write(STDERR_FILENO, msg, 38);
+	char* msg = "Alarm occured. Time to kill children.\nPress Ctrl^C\n";
+	write(STDERR_FILENO, msg, 51);
 
 	pid_t pgid = getpgid(getpid());
+	while(wait(NULL))
+	{
+		if (errno == ECHILD)
+			break;
+	}
 	removeshmem(-1, -1, -1, (void*)-1);
-	kill(pgid, SIGINT);
+	// KILL 'EM ALL, no whammies
+	kill(pgid, SIGKILL);
+	pthread_exit(NULL);
+	exit(1);
 }
 
 // handler for user SIGINT

@@ -306,7 +306,6 @@ main (int argc, char** argv)
 		for (i = 0; i < MAXPROCESSES; i++) {
 			forknextprocess();
 		}
-				fprintf(stderr, "t: %d\n", clock->sec);
 		while (clock->sec < 20 && childcount <= MAXPROCESSES)
 		{
 			if (childcount > 19) {
@@ -390,6 +389,8 @@ systemclock(void* args)
 		return NULL;
 	while (clock->sec < 20)
 	{
+		if (clock == NULL)
+			return NULL;
 		pthread_testcancel();
 		updateclock(clock);			
 		if (clock == NULL)
@@ -477,7 +478,6 @@ msgthread(void* args)
 		
 		if (semop(semid, msgwait, 1) == -1) {
 			perror("MSGTHREAD: Failed to wait for message.");
-			pthread_exit(NULL);
 			return NULL;
 		}
 		
@@ -488,7 +488,7 @@ msgthread(void* args)
 		
 		if (semop(semid, mutex, 1) == -1) {
 			perror("MSGTHREAD: Failed to lock logfile.");
-			pthread_exit(NULL);
+			//pthread_exit(NULL);
 			return NULL;
 		}
 		
@@ -508,7 +508,7 @@ msgthread(void* args)
 		
 		if (semop(semid, mutex+1, 1) == -1) { 		
 			perror("MSGTHREAD: Failed to unlock logfile.");
-			pthread_exit(NULL);	
+			//pthread_exit(NULL);	
 			return NULL;
 		}
 		
@@ -552,7 +552,7 @@ initsighandlers()
 {
 	struct sigaction newact = {{0}};
 	struct sigaction timer = {{0}};
-	timer.sa_handler = catchctrlc;
+	timer.sa_handler = handletimer;
 	timer.sa_flags = 0;
 	newact.sa_handler = catchctrlc;
 	newact.sa_flags = 0;

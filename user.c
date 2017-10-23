@@ -140,20 +140,19 @@ main (int argc, char** argv)
 	// initialize endtime 
 	int quantum = rand() % 1000000 + 1;
 
-	fprintf(stderr,"im waiting!\t%d\n", dispatch->proc_id);
 	// get exclusive access while reading
-	//if (sem_wait() == -1) {
+	if (sem_wait() == -1) {
 		// failed to lock shm
-	//	return 1;
-	//}
+		return 1;
+	}
 
 	// calculate endtime, reading from shared memory
 	oss_clock_t endt = calcendtime(clock, quantum);
 
 	// let others read from shared memory
-	//if (sem_signal() == -1) { 		
-	//	return 1;
-	//}
+	if (sem_signal() == -1) { 		
+		return 1;
+	}
 
 	// output endtime to stderr
 	fprintf(stderr,"USER: %d endtime:%d,%d\n",myid,endt.sec,endt.nsec);
