@@ -32,23 +32,22 @@ static int alarmhappened = 0;
 void
 catchctrlc(int signo)
 {
+	pid_t pgid = getpgid(getpid());
 	alarm(0); // cancel alarm
 	if (alarmhappened == 0) {
 		char* msg = "Ctrl^C pressed, killing children.\n";
 		write(STDERR_FILENO, msg, 34);
 	}
+	//kill(pgid, SIGINT);
 	while(wait(NULL))
 	{
 		if (errno == ECHILD)
 			break;
 	}
 	removeshmem(-1, -1, -1, (void*)-1);
-	freequeue();
-	freeprocesscntlblock();
 	// KILL 'EM ALL, no whammies
-	pid_t pgid = getpgid(getpid());
-	kill(pgid, SIGKILL);
 	pthread_exit(NULL);
+	kill(pgid, SIGKILL);
 	exit(1);
 }
 
@@ -59,8 +58,9 @@ handletimer(int signo)
 	alarmhappened = 1;
 	char* msg = "Alarm occured. Time to kill children.\n";
 	write(STDERR_FILENO, msg, 38);
-	pid_t pgid = getpgid(getpid());
 
+	pid_t pgid = getpgid(getpid());
+	removeshmem(-1, -1, -1, (void*)-1);
 	kill(pgid, SIGINT);
 }
 

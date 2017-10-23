@@ -21,12 +21,14 @@ $Author: o1-hester $
 static int sem_id;
 static int msg_id;
 static int shm_clock_id;
-static oss_clock_t* shm_addr;
+static int shm_dispatch_id;
+static oss_clock_t* shm_clock_addr;
+static pxs_id_t* shm_dispatch_addr;
 
 // Initializes semaphore with id, num, and value
 // returns -1 on failure
 int
-initelement(const int semid, const int semnum, const int semval)
+initelement(int semid, int semnum, int semval)
 {
 	union semun {
 		int val;
@@ -71,6 +73,17 @@ getclockshmid(const key_t shmkey)
 	return shm_clock_id;
 }
 
+// creates shared memory, returns -1 on error and shmid on success
+int
+getdispatchshmid(const key_t shmkey)
+{
+	shm_dispatch_id = shmget(shmkey, sizeof(pxs_id_t), PERM|IPC_CREAT);
+	if (shm_dispatch_id == -1) {
+		return -1;
+	}
+	return shm_dispatch_id;
+}
+
 // gets shared memory (read only), returns -1 on error and shmid on success
 int
 getclockshmid_ro(const key_t shmkey)
@@ -78,15 +91,33 @@ getclockshmid_ro(const key_t shmkey)
 	return shmget(shmkey, sizeof(oss_clock_t), RPERM);
 }
 
+// gets shared memory (read only), returns -1 on error and shmid on success
+int
+getdispatchshmid_ro(const key_t shmkey)
+{
+	return shmget(shmkey, sizeof(pxs_id_t), RPERM);
+}
+
 // attach system clock to shared memory segment, return -1 on error
 oss_clock_t*
 attachshmclock(const int shmid)
 {
-	shm_addr = (oss_clock_t*)shmat(shmid, NULL, 0);
-	if (shm_addr == (void*)-1) {
+	shm_clock_addr = (oss_clock_t*)shmat(shmid, NULL, 0);
+	if (shm_clock_addr == (void*)-1) {
 		return (void*)-1;
 	}
-	return shm_addr;
+	return shm_clock_addr;
+}
+
+// attach dispatch to shared memory segment, return -1 on error
+pxs_id_t*
+attachshmdispatch(const int shmid)
+{
+	shm_dispatch_addr = (pxs_id_t*)shmat(shmid, NULL, 0);
+	if (shm_dispatch_addr == (void*)-1) {
+		return (void*)-1;
+	}
+	return shm_dispatch_addr;
 }
 
 //set up a semaphore operation
@@ -103,7 +134,7 @@ setsembuf(struct sembuf *s, int n, int op, int flg)
 // send messages to msgqueue, return -1 on error
 int
 sendmessage(const int msgid, const long pid,
-		const oss_clock_t endtime, const oss_clock_t* clock)
+		const oss_clock_t endtime, oss_clock_t* clock)
 {
 	mymsg_t* mymsg = (mymsg_t*) malloc(sizeof(mymsg_t));
 	if (mymsg == NULL) {
@@ -117,15 +148,14 @@ sendmessage(const int msgid, const long pid,
 	int et1 = endtime.nsec;
 	// strings and what not
 	char* m0 = "Child ";
-	char* m1 = " is terminating at time ";
+	char* m1 = " terminating at ";
 	char* m2 = " because it reached ";
-	char* m3 = " in slave";
 	char* t_m = (char*)malloc(LINESIZE*sizeof(char));
 	if (t_m == NULL) {
 		return -1;
 	}
 	// This message holds: child pid, termination time, and expiry time
-	sprintf(t_m,"%s%ld%s%d.%d%s%d.%d%s",m0,pid,m1,t0,t1,m2,et0,et1,m3);
+	sprintf(t_m,"%s%ld%s%d.%d%s%d.%d",m0,pid,m1,t0,t1,m2,et0,et1);
 	mymsg->mtype = 1;
 	memcpy(mymsg->mtext, t_m, LINESIZE);
 	if (msgsnd(msgid, mymsg, sizeof(mymsg_t), 0) == -1) {
@@ -167,7 +197,7 @@ removeshmem(int msgid, int semid, int shmid, void* shmaddr)
 	if (shmid == -1)
 		shmid = shm_clock_id;
 	if (shmaddr == (void*)-1)
-		shmaddr = shm_addr;
+		shmaddr = shm_clock_addr;
 	// Kill message queue
 	char* msg = "IPC: Killing msgqueue.\n";
 	write(STDERR_FILENO, msg, 23);
@@ -183,6 +213,9 @@ removeshmem(int msgid, int semid, int shmid, void* shmaddr)
 	// kill semaphore set
 	msg = "IPC: Killing shared memory segments.\n";
 	write(STDERR_FILENO, msg, 37);
+	if (detachandremove(shm_dispatch_id, shm_dispatch_addr) == -1) {
+		error = errno;
+	}
 	if (detachandremove(shmid, shmaddr) == -1) {
 		error = errno;
 	}
@@ -193,7 +226,7 @@ removeshmem(int msgid, int semid, int shmid, void* shmaddr)
 
 // Detaches and removes shared memory, return -1 on error
 int
-detachandremove(const int shmid, const void* shmaddr)
+detachandremove(const int shmid, void* shmaddr)
 {
 	int error = 0;
 	if (shmdt(shmaddr) == -1)

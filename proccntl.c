@@ -56,9 +56,11 @@ prioritize()
 }
 
 int
-dispatchnextprocess()
+dispatchnextprocess(pxs_id_t* dispatch)
 {
-	
+	if (dispatch == NULL)
+		return -1;
+	dispatch->proc_id = dispatch_count;	
 	dispatch_count++;
 	return 0;
 }

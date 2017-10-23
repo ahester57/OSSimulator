@@ -65,10 +65,11 @@ void* msgthread(void* args);
 // initiators
 int initsemaphores(int semid);
 int initsighandlers();
-oss_clock_t* initsharedclock(int shmid);
+oss_clock_t* initsharedclock(const int shmid);
+pxs_id_t* initshareddispatch(const int shmid);
 //print usage/error
 void printusage();
-void printopterr(char optopt);
+void printopterr(const char optopt);
 
 // oss main. spawns a number of children that do some stuff
 int
@@ -142,11 +143,12 @@ main (int argc, char** argv)
 	}
 
 	// get keys from file
-	key_t mkey, skey, shmkey;
+	key_t mkey, skey, shmkey, diskey;
 	mkey = ftok(KEYPATH, MSG_ID);
 	skey = ftok(KEYPATH, SEM_ID);
 	shmkey = ftok(KEYPATH, SHM_ID);
-	if ((mkey == -1) || (skey == -1) || (shmkey == -1)) {
+	diskey = ftok(KEYPATH, SHM_ID*2);
+	if (mkey == -1 || skey == -1 || shmkey == -1 || diskey == -1) {
 		perror("OSS: Failed to retreive keys.");
 		return 1;
 	}
@@ -200,6 +202,16 @@ main (int argc, char** argv)
 	oss_clock_t* clock;
 	clock = initsharedclock(shmid); 
 	if (clock == (void*)-1) {
+		perror("OSS: Failed to attach shared memory.");	
+		return 1;
+	}
+	int disid = getdispatchshmid(diskey);
+	if (disid == -1) {
+		perror("OSS: Failed to create shared memory segment.");
+		return 1;
+	}	
+	pxs_id_t* dispatch = initshareddispatch(disid);
+	if (dispatch == (void*)-1) {
 		perror("OSS: Failed to attach shared memory.");	
 		return 1;
 	}
@@ -290,10 +302,12 @@ main (int argc, char** argv)
 		// > the clock has reached 2 s
 		// > 100 children have been spawned
 		childcount = 0;
+		int nextuser = 0;
 		for (i = 0; i < MAXPROCESSES; i++) {
 			forknextprocess();
 		}
-		while (clock->sec < 40 && childcount < 100)
+				fprintf(stderr, "t: %d\n", clock->sec);
+		while (clock->sec < 20 && childcount <= MAXPROCESSES)
 		{
 			if (childcount > 19) {
 				// don't have too many kids at once
@@ -301,8 +315,16 @@ main (int argc, char** argv)
 			}
 			
 			if (childcount < MAXPROCESSES) {
+				while (clock->sec < nextuser)
+				{
+
+				}
+				fprintf(stderr, "next guy\n");
+				fprintf(stderr, "t: %d\n", clock->sec);
+				fprintf(stderr, "d: %d\n", dispatch->proc_id);
+				nextuser += (int) rand() % 3;
 				//spawn new child
-				dispatchnextprocess();
+				dispatchnextprocess(dispatch);
 				childcount++;
 			}
 		}
@@ -351,7 +373,7 @@ updateclock(oss_clock_t* clock)
 {
 	if (clock == NULL)
 		return;
-	clock->nsec += 10;
+	clock->nsec += 50;
 	if (clock->nsec >= 1000000000) {
 		clock->sec += 1;
 		clock->nsec = 0;
@@ -366,8 +388,9 @@ systemclock(void* args)
 	oss_clock_t* clock = (oss_clock_t*)(args);
 	if (clock == NULL)
 		return NULL;
-	while (clock->sec < 40)
+	while (clock->sec < 20)
 	{
+		pthread_testcancel();
 		updateclock(clock);			
 		if (clock == NULL)
 			return NULL;
@@ -419,6 +442,7 @@ logchildcreate(void* args)
 	if (semop(semid, mutex, 1) == -1) {
 		perror("C_LOG: Failed to lock logfile.");
 		pthread_exit(NULL);
+		return NULL;
 	}
 
 	// CRITICAL SECTION
@@ -430,6 +454,7 @@ logchildcreate(void* args)
 	if (semop(semid, mutex+1, 1) == -1) { 		
 		perror("C_LOG: Failed to unlock logfile.");
 		pthread_exit(NULL);	
+		return NULL;
 	}
 
 	pthread_testcancel();
@@ -449,18 +474,24 @@ msgthread(void* args)
 	{
 		pthread_testcancel();
 		// wait until signaled by child 
+		
 		if (semop(semid, msgwait, 1) == -1) {
 			perror("MSGTHREAD: Failed to wait for message.");
 			pthread_exit(NULL);
+			return NULL;
 		}
+		
 		// sleep for 1000 microseconds, gives spawnLOG more time
 		usleep(1000);
 
 		// wait until your turn
+		
 		if (semop(semid, mutex, 1) == -1) {
 			perror("MSGTHREAD: Failed to lock logfile.");
 			pthread_exit(NULL);
+			return NULL;
 		}
+		
 
 		// CRITICAL SECTION
 		mymsg_t msg;
@@ -474,10 +505,13 @@ msgthread(void* args)
 		} 
 
 		// unlock file
+		
 		if (semop(semid, mutex+1, 1) == -1) { 		
 			perror("MSGTHREAD: Failed to unlock logfile.");
 			pthread_exit(NULL);	
+			return NULL;
 		}
+		
 		pthread_testcancel();
 	}
 	return NULL;	
@@ -518,7 +552,7 @@ initsighandlers()
 {
 	struct sigaction newact = {{0}};
 	struct sigaction timer = {{0}};
-	timer.sa_handler = handletimer;
+	timer.sa_handler = catchctrlc;
 	timer.sa_flags = 0;
 	newact.sa_handler = catchctrlc;
 	newact.sa_flags = 0;
@@ -537,7 +571,7 @@ initsighandlers()
 
 // initialize shared memory, return -1 on error
 oss_clock_t*
-initsharedclock(int shmid)
+initsharedclock(const int shmid)
 {
 	oss_clock_t* clock;
 	clock = attachshmclock(shmid);
@@ -548,6 +582,21 @@ initsharedclock(int shmid)
 	clock->sec = 0;
 	clock->nsec = 0;
 	return clock;
+}
+
+// initialize shared memory, return -1 on error
+pxs_id_t*
+initshareddispatch(const int shmid)
+{
+	pxs_id_t* dispatch;
+	dispatch = attachshmdispatch(shmid);
+	if (dispatch == (void*)-1) {
+		// failed to init shm
+		return (void*)-1;
+	}
+	dispatch->proc_id = -1;
+	dispatch->quantum = 100000;
+	return dispatch;
 }
 
 // when the user dun goofs
@@ -564,7 +613,7 @@ printusage()
 
 // when the user dun goofs
 void
-printopterr(char optopt)
+printopterr(const char optopt)
 {
 	if (optopt == 's' || optopt == 'l' || optopt == 't')
 		fprintf(stderr, "\tOption -%c requires an argument.\n", optopt);

@@ -52,11 +52,12 @@ main (int argc, char** argv)
 {
 	unsigned int myid = atoi(argv[1]);
 	// get keys from file
-	key_t mkey, skey, shmkey;
+	key_t mkey, skey, shmkey, diskey;
 	mkey = ftok(KEYPATH, MSG_ID);
 	skey = ftok(KEYPATH, SEM_ID);
 	shmkey = ftok(KEYPATH, SHM_ID);
-	if ((mkey == -1) || (skey == -1) || (shmkey == -1)) {
+	diskey = ftok(KEYPATH, SHM_ID*2);
+	if (mkey == -1 || skey == -1 || shmkey == -1 || diskey == -1) {
 		perror("CHILD: Failed to retreive keys.");
 		return 1;
 	}
@@ -70,22 +71,30 @@ main (int argc, char** argv)
 	/***************** Set up shared memory *******/
 	// Child has read-only permissions on shm
 	int shmid = getclockshmid_ro(shmkey);
-	oss_clock_t* clock;
 	if (shmid == -1) {
 		perror("CHILD: Failed to retreive shared memvory segment.");
 		return 1;
 	}
+	oss_clock_t* clock;
 	clock = attachshmclock(shmid);
 	if (clock == (void*)-1) {
-		perror("CHILD: Failed to attack shared memory.");	
+		perror("CHILD: Failed to attach shared memory.");	
+		return 1;
+	}
+	int disid = getdispatchshmid_ro(diskey);
+	pxs_id_t* dispatch = attachshmdispatch(disid);
+	if (dispatch == (void*)-1) {
+		perror("CHILD: Failed to attach shared memory.");	
 		return 1;
 	}
 
 	/***************** Set up semaphores ***********/
-	semid = semget(skey, 2, PERM);
+	semid = semget(skey, 3, PERM);
 	if (semid == -1) {
 		if (errno == EIDRM) {
 			perror("CHILD: Interrupted");
+			shmdt(dispatch);
+			shmdt(clock);
 			return 1;
 		}
 		perror("CHILD: Failed to set up semaphore.");
@@ -103,11 +112,22 @@ main (int argc, char** argv)
 	if (msgid == -1) {
 		if (errno == EIDRM) {
 			perror("CHILD: Interrupted");
+			shmdt(dispatch);
+			shmdt(clock);
 			return 1;
 		}
 		perror("CHILD: Failed to create message queue.");
 		return 1;
 	}
+
+	while (myid != dispatch->proc_id)
+	{
+		if (clock == NULL || dispatch == NULL) {
+			perror("asdfa;adf");
+			exit(1);
+		}
+	}
+	fprintf(stderr,"im on!\t%d\n", dispatch->proc_id);
 	
 	// seed random 
 	struct timespec tm;
@@ -120,19 +140,20 @@ main (int argc, char** argv)
 	// initialize endtime 
 	int quantum = rand() % 1000000 + 1;
 
+	fprintf(stderr,"im waiting!\t%d\n", dispatch->proc_id);
 	// get exclusive access while reading
-	if (sem_wait() == -1) {
+	//if (sem_wait() == -1) {
 		// failed to lock shm
-		return 1;
-	}
+	//	return 1;
+	//}
 
 	// calculate endtime, reading from shared memory
 	oss_clock_t endt = calcendtime(clock, quantum);
 
 	// let others read from shared memory
-	if (sem_signal() == -1) { 		
-		return 1;
-	}
+	//if (sem_signal() == -1) { 		
+	//	return 1;
+	//}
 
 	// output endtime to stderr
 	fprintf(stderr,"USER: %d endtime:%d,%d\n",myid,endt.sec,endt.nsec);
@@ -140,7 +161,7 @@ main (int argc, char** argv)
 	/**************** Child loop **************/
 	// begin looping over critical section
 	// where each child checks the clock in shmem
-	while (!expiry)
+	while (expiry != 1)
 	{	
 	/************ Entry section ***************/	
 	// wait until your turn
@@ -160,6 +181,7 @@ main (int argc, char** argv)
 		|| (endt.sec < clock->sec)) {
 		// child's time is up
 		expiry = 1;
+		fprintf(stderr, "USER: Hey im done %d\n", myid);
 		sendmessage(msgid, myid, endt, clock);
 		// signal parent that a new message is available
 		if (semop(semid, msgsignal, 1) == -1) {
@@ -183,6 +205,8 @@ main (int argc, char** argv)
 		return 1;
 	} 
 	} // end while
+	shmdt(dispatch);
+	shmdt(clock);
 
  	if (errno != 0) {
 		perror("CHILD: uncaught error:");
