@@ -17,6 +17,6 @@ $Author: o1-hester $
 
 void catchctrlc(int signo);
 void handletimer(int signo);
-void catchchildintr(int signo);
+void catchuserintr(int signo);
 
 #endif

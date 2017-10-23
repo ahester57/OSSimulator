@@ -64,7 +64,7 @@ getmsgid(key_t mkey)
 int
 getclockshmid(key_t shmkey)
 {
-	shm_clock_id = shmget(shmkey, 2*sizeof(int), PERM | IPC_CREAT);
+	shm_clock_id = shmget(shmkey, sizeof(oss_clock_t), PERM|IPC_CREAT);
 	if (shm_clock_id == -1) {
 		return -1;
 	}
@@ -73,7 +73,7 @@ getclockshmid(key_t shmkey)
 
 // gets shared memory (read only), returns -1 on error and shmid on success
 int
-getclockshmidreadonly(key_t shmkey)
+getclockshmid_ro(key_t shmkey)
 {
 	return shmget(shmkey, sizeof(oss_clock_t), RPERM);
 }

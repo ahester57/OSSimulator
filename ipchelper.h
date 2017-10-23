@@ -39,7 +39,7 @@ int initelement(int semid, int semnum, int semval);
 int getsemid(key_t skey, int nsems);
 int getmsgid(key_t mkey);
 int getclockshmid(key_t shmclockkey);
-int getclockshmidreadonly(key_t shmkey);
+int getclockshmid_ro(key_t shmkey);
 oss_clock_t* attachshmclock(int shmid);
 void setsembuf(struct sembuf *s, int n, int op, int flg);
 int sendmessage(int msgid, long pid, oss_clock_t etime, oss_clock_t* clock);

@@ -230,10 +230,7 @@ main (int argc, char** argv)
 	{
 		putinblock(allocatenewprocess());
 		// spawn new child
-		// executes child program
 		//cpid = spawnchild(logf);
-		//if (cpid == -1)	
-		//	break; // failed to create child
 		childcount++;
 	}
 	
@@ -289,7 +286,10 @@ main (int argc, char** argv)
 		// > the clock has reached 2 s
 		// > 100 children have been spawned
 		childcount = 0;
-		while (clock->sec < 2 && childcount < 100)
+		for (i = 0; i < MAXPROCESSES; i++) {
+			forknextprocess();
+		}
+		while (clock->sec < 40 && childcount < 100)
 		{
 			if (childcount > 19) {
 				// don't have too many kids at once
@@ -345,6 +345,8 @@ main (int argc, char** argv)
 void
 updateclock(oss_clock_t* clock)
 {
+	if (clock == NULL)
+		return;
 	clock->nsec += 10;
 	if (clock->nsec >= 1000000000) {
 		clock->sec += 1;
@@ -358,9 +360,13 @@ void*
 systemclock(void* args)
 {
 	oss_clock_t* clock = (oss_clock_t*)(args);
-	while (clock->sec < 2)
+	if (clock == NULL)
+		return NULL;
+	while (clock->sec < 40)
 	{
 		updateclock(clock);			
+		if (clock == NULL)
+			return NULL;
 	}
 	return NULL;
 }

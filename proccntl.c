@@ -45,10 +45,18 @@ getprocesscntlblock()
 int
 dispatchnextprocess()
 {
+	return 0;
+}
+
+// forks next process
+int
+forknextprocess()
+{
 	char* childpid = (char*)malloc(16*sizeof(char));
 	if (childpid == NULL)
 		return 1;
 	sprintf(childpid, "%d", prev_id++);
+
 	long cpid = fork();	
 	if (cpid <= 0) {
 		// execute child
@@ -123,6 +131,7 @@ findfreeblock()
 	return -1;
 }
 
+// call at end, 
 int
 freeprocesscntlblock()
 {

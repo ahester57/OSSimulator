@@ -20,6 +20,8 @@ $Author: o1-hester $
 #include <sys/wait.h>
 #include "osstypes.h"
 #include "ipchelper.h"
+#include "proccntl.h"
+#include "procsched.h"
 #include "sighandler.h"
 
 // whether the alarm occured, for outputting why its over
@@ -33,16 +35,18 @@ catchctrlc(int signo)
 	alarm(0); // cancel alarm
 	if (alarmhappened == 0) {
 		char* msg = "Ctrl^C pressed, killing children.\n";
-		write(STDERR_FILENO, msg, 36);
+		write(STDERR_FILENO, msg, 34);
 	}
-	removeshmem(-1, -1, -1, (void*)-1);
-	pid_t pgid = getpgid(getpid());
 	while(wait(NULL))
 	{
 		if (errno == ECHILD)
 			break;
 	}
+	removeshmem(-1, -1, -1, (void*)-1);
+	freequeue();
+	freeprocesscntlblock();
 	// KILL 'EM ALL, no whammies
+	pid_t pgid = getpgid(getpid());
 	kill(pgid, SIGKILL);
 	pthread_exit(NULL);
 	exit(1);
@@ -54,17 +58,17 @@ handletimer(int signo)
 {
 	alarmhappened = 1;
 	char* msg = "Alarm occured. Time to kill children.\n";
-	write(STDERR_FILENO, msg, 39);
+	write(STDERR_FILENO, msg, 38);
 	pid_t pgid = getpgid(getpid());
 
 	kill(pgid, SIGINT);
 }
 
-// handler for palin SIGINT
+// handler for user SIGINT
 void
-catchchildintr(int signo)
+catchuserintr(int signo)
 {
 	char msg[] = "Child interrupted. Goodbye.\n";
-	write(STDERR_FILENO, msg, 32);
+	write(STDERR_FILENO, msg, 28);
 	exit(1);
 }

@@ -7,6 +7,7 @@
 int initprocesscntlblock();
 pxs_cb_t* getprocesscntlblock();
 int dispatchnextprocess();
+int forknextprocess();
 pxs_cb_t allocatenewprocess();
 int putinblock(pxs_cb_t process);
 int removefromblock(pxs_cb_t process);

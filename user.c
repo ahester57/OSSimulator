@@ -69,7 +69,7 @@ main (int argc, char** argv)
 
 	/***************** Set up shared memory *******/
 	// Child has read-only permissions on shm
-	int shmid = getclockshmidreadonly(shmkey);
+	int shmid = getclockshmid_ro(shmkey);
 	oss_clock_t* clock;
 	if (shmid == -1) {
 		perror("CHILD: Failed to retreive shared memvory segment.");
@@ -243,7 +243,7 @@ int
 initsighandler()
 {
 	struct sigaction act = {{0}};
-	act.sa_handler = catchchildintr;
+	act.sa_handler = catchuserintr;
 	act.sa_flags = 0;
 	if ((sigemptyset(&act.sa_mask) == -1) ||
 	    (sigaction(SIGINT, &act, NULL) == -1) ||
