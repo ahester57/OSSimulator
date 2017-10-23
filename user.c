@@ -270,7 +270,8 @@ initsighandler()
 	act.sa_flags = 0;
 	if ((sigemptyset(&act.sa_mask) == -1) ||
 	    (sigaction(SIGINT, &act, NULL) == -1) ||
-	    (sigaction(SIGALRM, &act, NULL) == -1)) {
+	    (sigaction(SIGALRM, &act, NULL) == -1) ||
+	    (sigaction(SIGUSR1, &act, NULL) == -1)) {
 		return -1;
 	}	
 	return 0;
