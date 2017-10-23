@@ -54,6 +54,8 @@ int semid;
 struct sembuf mutex[2];
 struct sembuf msgwait[1];
 
+int sumtoreach;
+int sumnow;
 // clock
 void updateclock(oss_clock_t* clock);
 void* systemclock(void* args);
@@ -81,6 +83,7 @@ main (int argc, char** argv)
 	// --help/version
 	// --timeout/FILENAME
 	// fatal error on malloc return NULL
+	sumnow = 0;
 	int maxslaves = 5;
 	int timeout = 20;
 	char* fname = "default.log";
@@ -241,7 +244,7 @@ main (int argc, char** argv)
 	term = 18;
 	while (childcount < term)
 	{
-		putinblock(allocatenewprocess());
+		addtoblock(makenewprocessblock());
 		// spawn new child
 		//cpid = spawnchild(logf);
 		childcount++;
@@ -256,6 +259,7 @@ main (int argc, char** argv)
 		}
 	}
 
+	sumtoreach = (10 + (10 + MAXPROCESSES - 1)) / 2 * MAXPROCESSES;
 	prioritize();
 
 	for (i = 0; i < MAXPROCESSES; i++) {
@@ -306,28 +310,51 @@ main (int argc, char** argv)
 		for (i = 0; i < MAXPROCESSES; i++) {
 			forknextprocess();
 		}
-		while (clock->sec < 20 && childcount <= MAXPROCESSES)
+		usleep(100000);
+		//dispatchprocess(dispatch, 10);
+		while (clock->sec < 20 || childcount < MAXPROCESSES)
 		{
-			if (childcount > 19) {
+			if (childcount > 18) {
 				// don't have too many kids at once
 				wait(NULL);			
 			}
-			
+				
 			if (childcount < MAXPROCESSES) {
 				while (clock->sec < nextuser)
 				{
 
 				}
 				fprintf(stderr, "next guy\n");
-				fprintf(stderr, "t: %d\n", clock->sec);
-				fprintf(stderr, "d: %d\n", dispatch->proc_id);
-				nextuser += (int) rand() % 3;
+				int ran = (int)(rand()) % 3;
+				if (ran == 0) {
+					if (childcount > 1)
+						wait(NULL);
+					usleep(5000000);
+				}
+				nextuser += ran;
 				//spawn new child
 				dispatchnextprocess(dispatch);
+				fprintf(stderr, "time: %d\n", clock->sec);
+				fprintf(stderr, "dch:\t %d\n", dispatch->proc_id);
 				childcount++;
 			}
 		}
+		/*
+		pxs_cb_t** queue = getpriorityqueue();
+		for (i = 0; i < 3; i++) {
+			for (e = 0; e < 18; e++) {
+			fprintf(stderr, "%d\t", queue[i][e].proc_id);
+			}
+			fprintf(stderr, "\n");
+		}
+		*/
 		// Waits for all children to be done
+		fprintf(stderr, "OSS: Waiting for children now.\n");
+		// dispatch rest
+		for (i = 10; i < 10+MAXPROCESSES; i++) {
+			dispatchprocess(dispatch, i);
+			usleep(50000);
+		}
 		while (wait(NULL))
 		{
 			if (errno == ECHILD)
@@ -336,17 +363,19 @@ main (int argc, char** argv)
 		/* wait until clock is finished to close everything
 		 * with pthread_join( "clock thread id" );
 		 * lets message thread deal with its queue */
+		fprintf(stderr, "OSS: Waiting for clock now.\n");
 		if (pthread_join(ctid, NULL) != 0) {
 			perror("OSS: Failed to join clock thread.");
 			return 1;
 		}
+		
 		// close message listening thread
 		pthread_cancel(tid);
 
 		fprintf(stderr, "OSS: All children accounted for\n");
 		dprintf(logf, "OSS: All children accounted for\n");
-		fprintf(stderr, "OSS: Internal clock reached 2s.\n");
-		dprintf(logf, "OSS: Internal clock reached 2s.\n");
+		fprintf(stderr, "OSS: Internal clock reached 38s.\n");
+		dprintf(logf, "OSS: Internal clock reached 38s.\n");
 		fprintf(stderr, "OSS: Message thread closed.\n");
 		dprintf(logf, "OSS: Message thread closed.\n");
 		fprintf(stderr, "OSS: Filename for log: %s\n", fname);
@@ -372,7 +401,7 @@ updateclock(oss_clock_t* clock)
 {
 	if (clock == NULL)
 		return;
-	clock->nsec += 50;
+	clock->nsec += 25;
 	if (clock->nsec >= 1000000000) {
 		clock->sec += 1;
 		clock->nsec = 0;
@@ -387,7 +416,7 @@ systemclock(void* args)
 	oss_clock_t* clock = (oss_clock_t*)(args);
 	if (clock == NULL)
 		return NULL;
-	while (clock->sec < 20)
+	while (clock->sec < 100)
 	{
 		if (clock == NULL)
 			return NULL;
@@ -395,6 +424,10 @@ systemclock(void* args)
 		updateclock(clock);			
 		if (clock == NULL)
 			return NULL;
+		if (sumnow > sumtoreach-10) {
+			pthread_exit(NULL);
+			return NULL;
+		}
 	}
 	return NULL;
 }
@@ -500,8 +533,12 @@ msgthread(void* args)
 		if (sz != (ssize_t)-1) {
 			char* m0 = "MSGTHREAD: ";
 			char* m1 = msg.mtext;
+			int id = msg.proc_id;
+			sumnow += id;
 			dprintf(logf, "%s%s\n",m0,m1);
 			fprintf(stderr, "%s%s\n",m0,m1);
+			fprintf(stderr, "MSGTHREAD: From %d\n", id);
+			dprintf(logf, "MSGTHREAD: From %d\n", id);
 		} 
 
 		// unlock file
@@ -594,7 +631,7 @@ initshareddispatch(const int shmid)
 		// failed to init shm
 		return (void*)-1;
 	}
-	dispatch->proc_id = -1;
+	dispatch->proc_id = 10;
 	dispatch->quantum = 100000;
 	return dispatch;
 }

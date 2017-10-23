@@ -157,6 +157,7 @@ sendmessage(const int msgid, const long pid,
 	// This message holds: child pid, termination time, and expiry time
 	sprintf(t_m,"%s%ld%s%d.%d%s%d.%d",m0,pid,m1,t0,t1,m2,et0,et1);
 	mymsg->mtype = 1;
+	mymsg->proc_id = pid;
 	memcpy(mymsg->mtext, t_m, LINESIZE);
 	if (msgsnd(msgid, mymsg, sizeof(mymsg_t), 0) == -1) {
 		free(t_m);

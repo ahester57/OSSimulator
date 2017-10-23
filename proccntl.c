@@ -60,8 +60,23 @@ dispatchnextprocess(pxs_id_t* dispatch)
 {
 	if (dispatch == NULL)
 		return -1;
-	dispatch->proc_id = dispatch_count;	
+	pxs_cb_t next;
+	do
+	{
+		next = getnextscheduledproc();
+	} while (next.proc_id == -1);	
+	dispatch->proc_id = next.proc_id;	
+	//dispatch->proc_id = dispatch_count;	
 	dispatch_count++;
+	return 0;
+}
+
+int
+dispatchprocess(pxs_id_t* dispatch, int proc_id)
+{
+	if (dispatch == NULL)
+		return -1;
+	dispatch->proc_id = proc_id;	
 	return 0;
 }
 
@@ -86,7 +101,7 @@ forknextprocess()
 
 // initialize a new process
 pxs_cb_t
-allocatenewprocess()
+makenewprocessblock()
 {
 	pxs_cb_t newpxs;
 	newpxs.proc_id = id_count++;
@@ -99,7 +114,7 @@ allocatenewprocess()
 
 // puts given process block in block, returns index or -1 on failure
 int
-putinblock(pxs_cb_t process)
+addtoblock(pxs_cb_t process)
 {
 	int index = findfreeblock();
 	if (index == -1)

@@ -7,9 +7,11 @@
 
 int initpriorityqueue();
 pxs_cb_t** getpriorityqueue();
+pxs_cb_t getnextscheduledproc();
 int decidepriority(pxs_cb_t* process);
-int putinqueue(pxs_cb_t* process, int qnum);
+int addtoqueue(pxs_cb_t* process, int qnum);
 int removefromqueue(const pxs_cb_t process);
+pxs_cb_t pop(int qnum);
 int findprocessindexqueue(const pxs_cb_t process);
 int findfreeblockqueue(const int qnum);
 int freequeue();

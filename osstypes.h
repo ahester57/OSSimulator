@@ -7,6 +7,7 @@
 typedef struct
 {
 	int mtype;
+	unsigned int proc_id;
 	char mtext[LINESIZE];
 } mymsg_t;
 
