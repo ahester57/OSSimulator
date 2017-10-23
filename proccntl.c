@@ -18,6 +18,7 @@ static pxs_id_t openpxsid = {-1, -1};
 
 // for giving process ids
 static unsigned int id_count = 10;
+static unsigned int dispatch_count = 10;
 static unsigned int prev_id = 10;
 
 int
@@ -42,9 +43,23 @@ getprocesscntlblock()
 	return NULL;
 }
 
+void
+prioritize()
+{
+	int i;
+	for (i = 0; i < MAXPROCESSES; i++) {
+		if (pxscntlblock[i].proc_id == -1)
+			continue;
+		decidepriority(&pxscntlblock[i]);
+	}
+	return;
+}
+
 int
 dispatchnextprocess()
 {
+	
+	dispatch_count++;
 	return 0;
 }
 
@@ -93,7 +108,7 @@ putinblock(pxs_cb_t process)
 
 // removes given process from block, return -1 if not found
 int
-removefromblock(pxs_cb_t process)
+removefromblock(const pxs_cb_t process)
 {
 	int index = findprocessindex(process);
 	if (index == -1)
@@ -104,7 +119,7 @@ removefromblock(pxs_cb_t process)
 
 // returns index of given process, return -1 if not found
 int
-findprocessindex(pxs_cb_t process)
+findprocessindex(const pxs_cb_t process)
 {
 	int proc_id = process.proc_id;
 	int i;

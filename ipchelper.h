@@ -35,18 +35,18 @@ $Author: o1-hester $
 #define SEM_ID 3490943 
 #define LINESIZE 256
 
-int initelement(int semid, int semnum, int semval);
-int getsemid(key_t skey, int nsems);
-int getmsgid(key_t mkey);
-int getclockshmid(key_t shmclockkey);
-int getclockshmid_ro(key_t shmkey);
-oss_clock_t* attachshmclock(int shmid);
+int initelement(const int semid, const int semnum, const int semval);
+int getsemid(const key_t skey, const int nsems);
+int getmsgid(const key_t mkey);
+int getclockshmid(const key_t shmclockkey);
+int getclockshmid_ro(const key_t shmkey);
+oss_clock_t* attachshmclock(const int shmid);
 void setsembuf(struct sembuf *s, int n, int op, int flg);
-int sendmessage(int msgid, long pid, oss_clock_t etime, oss_clock_t* clock);
-ssize_t getmessage(int msgid, mymsg_t* msg);
-int removemsgqueue(int msgid);
-void setmsgid(int msgid);
+int sendmessage(const int msgid, const long pid,
+		const oss_clock_t endtime, const oss_clock_t* clock);
+ssize_t getmessage(const int msgid, mymsg_t* msg);
+int removemsgqueue(const int msgid);
 int removeshmem(int msgid, int semid, int shmid, void* shmaddr);
-int detachandremove(int shmid, void* shmaddr);
+int detachandremove(const int shmid, const void* shmaddr);
 
 #endif

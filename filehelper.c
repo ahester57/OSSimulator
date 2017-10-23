@@ -71,7 +71,8 @@ countLines(const char* filename)
 
 // writes to file, returns -1 on error, 0 otherwise
 int
-writeToFile(const char* filename, long pid, int index, const char* text)
+writeToFile(const char* filename, const long pid,
+		const int index, const char* text)
 {
 	FILE* fp;
 	fp = fopen(filename, "a+");

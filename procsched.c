@@ -41,26 +41,29 @@ getpriorityqueue()
 
 // determine priority queue based on wait/time
 int
-decidequeue(pxs_cb_t process)
+decidepriority(pxs_cb_t* process)
 {
-
-	return 0;
+	int p;
+	p = (int) rand() % 3;
+	process->priority = p;
+	putinqueue(process, p);
+	return p;
 }
 
 // puts given process block in given queue, returns index or -1 on failure
 int
-putinqueue(pxs_cb_t process, int qnum)
+putinqueue(pxs_cb_t* process, int qnum)
 {
 	int index = findfreeblockqueue(qnum);
 	if (index == -1)
 		return -1;
-	queue[qnum][index] = process;
+	queue[qnum][index] = *process;
 	return index;
 }
 
 // removes given process from queue, return -1 if not found
 int
-removefromqueue(pxs_cb_t process)
+removefromqueue(const pxs_cb_t process)
 {
 	int qnum = process.priority;
 	int index = findprocessindexqueue(process);
@@ -72,7 +75,7 @@ removefromqueue(pxs_cb_t process)
 
 // returns index of given process, return -1 if not found
 int
-findprocessindexqueue(pxs_cb_t process)
+findprocessindexqueue(const pxs_cb_t process)
 {
 	int proc_id = process.proc_id;
 	int priority = process.proc_id;
@@ -88,7 +91,7 @@ findprocessindexqueue(pxs_cb_t process)
 
 // returns 1st open block in q, return -1 if full
 int
-findfreeblockqueue(int qnum)
+findfreeblockqueue(const int qnum)
 {
 	int i;
 	for (i = 0; i < MAXPROCESSES; i++) {

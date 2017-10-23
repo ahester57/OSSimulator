@@ -134,6 +134,13 @@ main (int argc, char** argv)
 		}
 	} // done getting options
 
+	/************** Open log file ****************/
+	int logf = open(fname, FILEPERMS, PERM);
+	if (logf == -1) {
+		perror("OSS: Could not open log file:");
+		return 1;
+	}
+
 	// get keys from file
 	key_t mkey, skey, shmkey;
 	mkey = ftok(KEYPATH, MSG_ID);
@@ -209,12 +216,6 @@ main (int argc, char** argv)
 	}
 	int i;
 
-	/************** Open log file ****************/
-	int logf = open(fname, FILEPERMS, PERM);
-	if (logf == -1) {
-		perror("OSS: Could not open log file:");
-		return 1;
-	}
 
 	// begin timeout alarm
 	alarm(timeout);
@@ -234,9 +235,6 @@ main (int argc, char** argv)
 		childcount++;
 	}
 	
-	for (i = 0; i < MAXPROCESSES; i++)
-		fprintf(stderr, "%d\n", block[i].proc_id);
-
 	// If master fails at spawning children
 	if (cpid == -1) {
 		perror("OSS: Failed to create child.");
@@ -246,6 +244,12 @@ main (int argc, char** argv)
 		}
 	}
 
+	prioritize();
+
+	for (i = 0; i < MAXPROCESSES; i++) {
+		fprintf(stderr, "%d\t", block[i].proc_id);
+		fprintf(stderr, "Priority: %d\n", block[i].priority);
+	}
 	/***************** Parent *****************/
 	/* The parent code block begins by starting the 
 	 * internal clock thread followed by the

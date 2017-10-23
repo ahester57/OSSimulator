@@ -26,7 +26,7 @@ static oss_clock_t* shm_addr;
 // Initializes semaphore with id, num, and value
 // returns -1 on failure
 int
-initelement(int semid, int semnum, int semval)
+initelement(const int semid, const int semnum, const int semval)
 {
 	union semun {
 		int val;
@@ -39,7 +39,7 @@ initelement(int semid, int semnum, int semval)
 
 // creates semaphore set, returns -1 on error and semid on success
 int
-getsemid(key_t skey, int nsems)
+getsemid(const key_t skey, const int nsems)
 {
 	sem_id = semget(skey, nsems, PERM | IPC_CREAT);
 	// seems pointless, but what if i wanna do something on failure?
@@ -51,7 +51,7 @@ getsemid(key_t skey, int nsems)
 
 // creates message queue, returns -1 on error and msgid on success
 int
-getmsgid(key_t mkey)
+getmsgid(const key_t mkey)
 {
 	msg_id = msgget(mkey, PERM | IPC_CREAT);
 	if (msg_id == -1) {
@@ -62,7 +62,7 @@ getmsgid(key_t mkey)
 
 // creates shared memory, returns -1 on error and shmid on success
 int
-getclockshmid(key_t shmkey)
+getclockshmid(const key_t shmkey)
 {
 	shm_clock_id = shmget(shmkey, sizeof(oss_clock_t), PERM|IPC_CREAT);
 	if (shm_clock_id == -1) {
@@ -73,14 +73,14 @@ getclockshmid(key_t shmkey)
 
 // gets shared memory (read only), returns -1 on error and shmid on success
 int
-getclockshmid_ro(key_t shmkey)
+getclockshmid_ro(const key_t shmkey)
 {
 	return shmget(shmkey, sizeof(oss_clock_t), RPERM);
 }
 
 // attach system clock to shared memory segment, return -1 on error
 oss_clock_t*
-attachshmclock(int shmid)
+attachshmclock(const int shmid)
 {
 	shm_addr = (oss_clock_t*)shmat(shmid, NULL, 0);
 	if (shm_addr == (void*)-1) {
@@ -102,7 +102,8 @@ setsembuf(struct sembuf *s, int n, int op, int flg)
 
 // send messages to msgqueue, return -1 on error
 int
-sendmessage(int msgid, long pid, oss_clock_t endtime, oss_clock_t* clock)
+sendmessage(const int msgid, const long pid,
+		const oss_clock_t endtime, const oss_clock_t* clock)
 {
 	mymsg_t* mymsg = (mymsg_t*) malloc(sizeof(mymsg_t));
 	if (mymsg == NULL) {
@@ -137,7 +138,7 @@ sendmessage(int msgid, long pid, oss_clock_t endtime, oss_clock_t* clock)
 
 // gets next message in queue, returns size or -1 on failure
 ssize_t
-getmessage(int msgid, mymsg_t* msg)
+getmessage(const int msgid, mymsg_t* msg)
 {
 	ssize_t sz;
 	sz = msgrcv(msgid, msg, sizeof(mymsg_t),0,IPC_NOWAIT);
@@ -149,7 +150,7 @@ getmessage(int msgid, mymsg_t* msg)
 
 // destroy message queue segment, return -1 on error
 int
-removemsgqueue(int msgid)
+removemsgqueue(const int msgid)
 {
 	return msgctl(msgid, IPC_RMID, NULL);
 }
@@ -192,7 +193,7 @@ removeshmem(int msgid, int semid, int shmid, void* shmaddr)
 
 // Detaches and removes shared memory, return -1 on error
 int
-detachandremove(int shmid, void* shmaddr)
+detachandremove(const int shmid, const void* shmaddr)
 {
 	int error = 0;
 	if (shmdt(shmaddr) == -1)

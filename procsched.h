@@ -7,11 +7,11 @@
 
 int initpriorityqueue();
 pxs_cb_t** getpriorityqueue();
-int decidequeue(pxs_cb_t process);
-int putinqueue(pxs_cb_t process, int qnum);
-int removefromqueue(pxs_cb_t process);
-int findprocessindexqueue(pxs_cb_t process);
-int findfreeblockqueue(int qnum);
+int decidepriority(pxs_cb_t* process);
+int putinqueue(pxs_cb_t* process, int qnum);
+int removefromqueue(const pxs_cb_t process);
+int findprocessindexqueue(const pxs_cb_t process);
+int findfreeblockqueue(const int qnum);
 int freequeue();
 
 #endif

@@ -20,6 +20,7 @@ $Author: o1-hester $
 
 int setArrayFromFile(const char* filename, char** list);
 int countLines(const char* filename);
-int writeToFile(const char* filename, long pid, int index, const char* text); 
+int writeToFile(const char* filename, const long pid,
+		const int index, const char* text); 
 
 #endif
