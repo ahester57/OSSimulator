@@ -18,7 +18,7 @@ $Author: o1-hester $
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <signal.h>
+//#include <signal.h>
 #define LINESIZE 256
 
 int setArrayFromFile(const char* filename, char** list);

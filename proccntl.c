@@ -10,17 +10,15 @@
 
 /********* Process Cntl Blocks ******/
 static pxs_cb_t* pxscntlblock;
-static pxs_id_t currentpxs[MAXPROCESSES];
 // block representing free(open) pxs_cntl_block
 static pxs_cb_t openblock = {-1, -1, -1, -1, -1};
-// repr. an open id block
-static pxs_id_t openpxsid = {-1, -1};
 
 // for giving process ids
 static unsigned int id_count = 10;
 static unsigned int dispatch_count = 10;
 static unsigned int prev_id = 10;
 
+// initialize
 int
 initprocesscntlblock()
 {
@@ -30,11 +28,11 @@ initprocesscntlblock()
 	int i;
 	for (i = 0; i < MAXPROCESSES; i++) {
 		pxscntlblock[i] = openblock;
-		currentpxs[i] = openpxsid;
 	}
 	return 0;
 }
 
+// return process control block
 pxs_cb_t*
 getprocesscntlblock()
 {
@@ -43,6 +41,7 @@ getprocesscntlblock()
 	return NULL;
 }
 
+// assign priorities to each process
 void
 prioritize()
 {
@@ -55,8 +54,10 @@ prioritize()
 	return;
 }
 
+// dispatch process by setting dispatch process id
+// gets next process id from process scheduler
 int
-dispatchnextprocess(pxs_id_t* dispatch)
+dispatchnextprocess(pxs_cb_t* dispatch)
 {
 	if (dispatch == NULL)
 		return -1;
@@ -66,13 +67,15 @@ dispatchnextprocess(pxs_id_t* dispatch)
 		next = getnextscheduledproc();
 	} while (next.proc_id == -1);	
 	dispatch->proc_id = next.proc_id;	
+	dispatch->quantum = next.quantum;
 	//dispatch->proc_id = dispatch_count;	
 	dispatch_count++;
 	return 0;
 }
 
+// dispatch process by setting dispatch process id
 int
-dispatchprocess(pxs_id_t* dispatch, int proc_id)
+dispatchprocess(pxs_cb_t* dispatch, int proc_id)
 {
 	if (dispatch == NULL)
 		return -1;

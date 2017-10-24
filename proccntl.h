@@ -7,8 +7,8 @@
 int initprocesscntlblock();
 pxs_cb_t* getprocesscntlblock();
 void prioritize();
-int dispatchnextprocess(pxs_id_t* dispatch);
-int dispatchprocess(pxs_id_t* dispatch, int proc_id);
+int dispatchnextprocess(pxs_cb_t* dispatch);
+int dispatchprocess(pxs_cb_t* dispatch, int proc_id);
 int forknextprocess();
 pxs_cb_t makenewprocessblock();
 int addtoblock(pxs_cb_t process);

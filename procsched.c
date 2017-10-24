@@ -66,6 +66,12 @@ decidepriority(pxs_cb_t* process)
 	int p;
 	p = (int) rand() % 3;
 	process->priority = p;
+	int q = 10000000;
+	if (p == 1)
+		q = q / 2;
+	else if (p == 2)
+		q = q / 4;
+	process->quantum = q;
 	addtoqueue(process, p);
 	return p;
 }

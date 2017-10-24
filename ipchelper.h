@@ -44,12 +44,12 @@ int getmsgid(const key_t mkey);
 int getclockshmid(const key_t shmclockkey);
 int getdispatchshmid(const key_t shmkey);
 int getclockshmid_ro(const key_t shmkey);
-int getdispatchshmid_ro(const key_t shmkey);
+//int getdispatchshmid_ro(const key_t shmkey);
 oss_clock_t* attachshmclock(const int shmid);
-pxs_id_t* attachshmdispatch(const int shmid);
+pxs_cb_t* attachshmdispatch(const int shmid);
 void setsembuf(struct sembuf *s, int n, int op, int flg);
 int sendmessage(const int msgid, const long pid,
-		const oss_clock_t endtime, oss_clock_t* clock);
+		const oss_clock_t endtime, const oss_clock_t clock);
 ssize_t getmessage(const int msgid, mymsg_t* msg);
 int removemsgqueue(const int msgid);
 int removeshmem(int msgid, int semid, int shmid, void* shmaddr);

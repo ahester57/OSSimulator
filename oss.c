@@ -46,7 +46,7 @@ $Author: o1-hester $
 #include "osstypes.h"
 #include "ipchelper.h"
 #include "sighandler.h"
-#include "filehelper.h"
+//#include "filehelper.h"
 #include "procsched.h"
 #include "proccntl.h"
 #define FILEPERMS (O_WRONLY | O_TRUNC | O_CREAT)
@@ -72,7 +72,7 @@ void* msgthread(void* args);
 int initsemaphores(int semid);
 int initsighandlers();
 oss_clock_t* initsharedclock(const int shmid);
-pxs_id_t* initshareddispatch(const int shmid);
+pxs_cb_t* initshareddispatch(const int shmid);
 //print usage/error
 void printusage();
 void printopterr(const char optopt);
@@ -89,7 +89,7 @@ main (int argc, char** argv)
 	// fatal error on malloc return NULL
 	sumnow = 0;
 	int maxslaves = 5;
-	int timeout = 20;
+	int timeout = 69;
 	char* fname = "default.log";
 	opterr = 0;
 	char c;
@@ -141,6 +141,11 @@ main (int argc, char** argv)
 			return 1;
 		}
 	} // done getting options
+
+	// seed random 
+	struct timespec tm;
+	clock_gettime(CLOCK_MONOTONIC, &tm);
+	srand((unsigned)(tm.tv_sec ^ tm.tv_nsec ^ (tm.tv_nsec >> 31)));
 
 	/************** Open log file ****************/
 	int logf = open(fname, FILEPERMS, PERM);
@@ -220,7 +225,7 @@ main (int argc, char** argv)
 		perror("OSS: Failed to create shared memory segment.");
 		return 1;
 	}	
-	pxs_id_t* dispatch = initshareddispatch(disid);
+	pxs_cb_t* dispatch = initshareddispatch(disid);
 	if (dispatch == (void*)-1) {
 		perror("OSS: Failed to attach shared memory.");	
 		return 1;
@@ -331,7 +336,6 @@ main (int argc, char** argv)
 				{
 
 				}
-				fprintf(stderr, "next guy\n");
 				int ran = (int)(rand()) % 3;
 				nextuser += ran;
 				//spawn new child
@@ -344,7 +348,7 @@ main (int argc, char** argv)
 				}
 				if (childcount == MAXPROCESSES)
 					break;
-				fprintf(stderr, "asdfasdf\n");
+				//fprintf(stderr, "asdfasdf\n");
 				if (semop(semid, dispatchwait, 1) == -1) {
 					perror("OSS: Dispatch fail.");
 					return 1;
@@ -367,11 +371,11 @@ main (int argc, char** argv)
 			dispatchprocess(dispatch, i);
 			usleep(50000);
 		}
-		//while (wait(NULL))
-		//{
-		//	if (errno == ECHILD)
-		//		break;
-		//}
+		while (wait(NULL))
+		{
+			if (errno == ECHILD)
+				break;
+		}
 		/* wait until clock is finished to close everything
 		 * with pthread_join( "clock thread id" );
 		 * lets message thread deal with its queue */
@@ -413,7 +417,7 @@ updateclock(oss_clock_t* clock)
 {
 	if (clock == NULL)
 		return;
-	clock->nsec += 100;
+	clock->nsec += 50;
 	if (clock->nsec >= 1000000000) {
 		clock->sec += 1;
 		clock->nsec = 0;
@@ -549,12 +553,9 @@ msgthread(void* args)
 			sumnow += id;
 			dprintf(logf, "%s%s\n",m0,m1);
 			fprintf(stderr, "%s%s\n",m0,m1);
-			fprintf(stderr, "MSGTHREAD: From %d\n", id);
-			dprintf(logf, "MSGTHREAD: From %d\n", id);
 		} 
 
 		// unlock file
-		
 		if (semop(semid, mutex+1, 1) == -1) { 		
 			perror("MSGTHREAD: Failed to unlock logfile.");
 			//pthread_exit(NULL);	
@@ -640,10 +641,10 @@ initsharedclock(const int shmid)
 }
 
 // initialize shared memory, return -1 on error
-pxs_id_t*
+pxs_cb_t*
 initshareddispatch(const int shmid)
 {
-	pxs_id_t* dispatch;
+	pxs_cb_t* dispatch;
 	dispatch = attachshmdispatch(shmid);
 	if (dispatch == (void*)-1) {
 		// failed to init shm

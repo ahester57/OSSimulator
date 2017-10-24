@@ -33,7 +33,7 @@ $Author: o1-hester $
 #include "osstypes.h"
 #include "ipchelper.h"
 #include "sighandler.h"
-#include "filehelper.h"
+//#include "filehelper.h"
 #define PALIN "./palin.out"
 #define NOPALIN "./nopalin.out"
 
@@ -43,14 +43,19 @@ struct sembuf mutex[2];
 struct sembuf msgsignal[1];
 struct sembuf dispatchsig[1];
 
-oss_clock_t calcendtime(oss_clock_t* clock, int quantum);
+oss_clock_t calcendtime(oss_clock_t clock, int quantum);
+oss_clock_t calcusedtime(oss_clock_t start, oss_clock_t clock);
+oss_clock_t* initsharedclock(const key_t shmkey);
+pxs_cb_t* initshareddispatch(const key_t diskey);
 int sem_wait();
 int sem_signal();
+int initsemaphores(const key_t skey);
 int initsighandler();
 
 // Child process spawn by oss 
-// Each child picks a number between 1-1000000
-// It adds this to the current time
+// Each child is assigned a quantum
+// It decides whether to use entire or partial quantum
+// It then adds this to the current time
 int
 main (int argc, char** argv)
 {
@@ -62,106 +67,87 @@ main (int argc, char** argv)
 	shmkey = ftok(KEYPATH, SHM_ID);
 	diskey = ftok(KEYPATH, SHM_ID*2);
 	if (mkey == -1 || skey == -1 || shmkey == -1 || diskey == -1) {
-		perror("CHILD: Failed to retreive keys.");
+		perror("USER: Failed to retreive keys.");
 		return 1;
 	}
 
 	/*************** Set up signal handler ********/
 	if (initsighandler() == -1) {
-		perror("CHILD: Failed to set up signal handlers");
+		perror("USER: Failed to set up signal handlers");
 		return 1;
 	}
 
 	/***************** Set up shared memory *******/
 	// Child has read-only permissions on shm
-	int shmid = getclockshmid_ro(shmkey);
-	if (shmid == -1) {
-		perror("CHILD: Failed to retreive shared memvory segment.");
-		return 1;
-	}
-	oss_clock_t* clock;
-	clock = attachshmclock(shmid);
+	oss_clock_t* clock = initsharedclock(shmkey);
 	if (clock == (void*)-1) {
-		perror("CHILD: Failed to attach shared memory.");	
+		perror("USER: Failed to attach shared memory.");	
 		return 1;
 	}
-	int disid = getdispatchshmid_ro(diskey);
-	pxs_id_t* dispatch = attachshmdispatch(disid);
+	pxs_cb_t* dispatch = initshareddispatch(diskey);
 	if (dispatch == (void*)-1) {
-		perror("CHILD: Failed to attach shared memory.");	
+		perror("USER: Failed to attach shared memory.");	
 		return 1;
 	}
 
 	/***************** Set up semaphores ***********/
-	semid = semget(skey, 4, PERM);
-	if (semid == -1) {
-		if (errno == EIDRM) {
-			perror("CHILD: Interrupted");
-			shmdt(dispatch);
-			shmdt(clock);
-			return 1;
-		}
-		perror("CHILD: Failed to set up semaphore.");
+	if (initsemaphores(skey) == -1) {
+		perror("USER: Failed to setup semaphores.");
 		return 1;
 	}
-	// mutex for reading from shared memory
-	setsembuf(mutex, 0, -1, 0);
-	setsembuf(mutex+1, 0, 1, 0);
-	// msgsignal for letting parent know when message is available
-	setsembuf(msgsignal, 2, 1, 0);
-	// for signaling parent to dispatch another guy
-	setsembuf(dispatchsig, 3, 1, 0);
 
 	/**************** Set up message queue *********/
 	// for writing
 	int msgid = msgget(mkey, PERM);
 	if (msgid == -1) {
 		if (errno == EIDRM) {
-			perror("CHILD: Interrupted");
-			shmdt(dispatch);
-			shmdt(clock);
+			perror("USER: Interrupted");
 			return 1;
 		}
-		perror("CHILD: Failed to create message queue.");
+		perror("USER: Failed to create message queue.");
 		return 1;
 	}
 
+	/************** Wait until dispatched **********/
 	while (myid != dispatch->proc_id)
 	{
 		if (clock == NULL || dispatch == NULL) {
-			perror("asdfa;adf");
-			exit(1);
+			perror("USER: Shared memory corrupt.");
+			return 1;
 		}
 	}
-	fprintf(stderr,"im on!\t%d\n", dispatch->proc_id);
-	
+
 	// seed random 
 	struct timespec tm;
 	clock_gettime(CLOCK_MONOTONIC, &tm);
 	srand((unsigned)(tm.tv_sec ^ tm.tv_nsec ^ (tm.tv_nsec >> 31)));
 
+	/********* Get values from pxs cntl block ******/
+	fprintf(stderr,"im on!\t%d\n", dispatch->proc_id);
+	// get time quantum 
+	int quantum = dispatch->quantum;
+	// decide to use entire | partial quantum
+	int entirequant = (int)(rand()) % 2;
+	if (!entirequant) {
+		int partial = (int)(rand()) % quantum;
+		quantum = partial;
+	}
+	// calculate endtime based on quantum, reading from oss_clock 
+	oss_clock_t start;
+	start.sec = clock->sec;
+	start.nsec = clock->nsec;
+	oss_clock_t end = calcendtime(*clock, quantum);
+	oss_clock_t usedtime;	// for later
+	
+
 	int expiry = 0; // flag for done
 	long pid = (long)getpid();
 	
-	// initialize endtime 
-	int quantum = rand() % 1000000 + 1;
-
-	// get exclusive access while reading
-	if (sem_wait() == -1) {
-		// failed to lock shm
-		return 1;
-	}
-
-	// calculate endtime, reading from shared memory
-	oss_clock_t endt = calcendtime(clock, quantum);
-
-	// let others read from shared memory
-	if (sem_signal() == -1) { 		
-		return 1;
-	}
-
 	// output endtime to stderr
-	fprintf(stderr,"USER: %d endtime:%d,%d\n",myid,endt.sec,endt.nsec);
+	fprintf(stderr,"USER:[%d] start:%d,%d\n",myid,start.sec,start.nsec);
+	fprintf(stderr,"USER:[%d] priority:%d\n",myid,dispatch->priority);
+	fprintf(stderr,"USER:[%d] runtime:%d\n",myid,quantum);
+	fprintf(stderr,"USER:[%d] endtime:%d,%d\n",myid,end.sec,end.nsec);
 	
 	/**************** Child loop **************/
 	// begin looping over critical section
@@ -182,12 +168,12 @@ main (int argc, char** argv)
 		return 1;
 	} 
 	/************ Critical section ***********/
-	if ((endt.sec <= clock->sec && endt.nsec <= clock->nsec)
-		|| (endt.sec < clock->sec)) {
+	if ((end.sec <= clock->sec && end.nsec <= clock->nsec)
+		|| (end.sec < clock->sec)) {
 		// child's time is up
 		expiry = 1;
 		fprintf(stderr, "USER: Hey im done %d\n", myid);
-		sendmessage(msgid, myid, endt, clock);
+		sendmessage(msgid, myid, end, *clock);
 		// signal parent that a new message is available
 		if (semop(semid, msgsignal, 1) == -1) {
 			perror("CHILD: Failed to signal parent.");
@@ -210,12 +196,21 @@ main (int argc, char** argv)
 		return 1;
 	} 
 	} // end while
+
+	// calculate and set used cpu time
+	usedtime = calcusedtime(start, *clock);
+	dispatch->used_cpu_time += usedtime.nsec;
+
+	// detach shared memory
+	if (shmdt(dispatch) == -1 || shmdt(clock) == -1) {
+		perror("USER: Failed to detach shared memory.");
+		return 1;
+	}
+	// signal parent to dispatch a new process
 	if (semop(semid, dispatchsig, 1) == -1) {
 		perror("USER: Failed to signal dispatcher.");
 		return 1;
 	}
-	shmdt(dispatch);
-	shmdt(clock);
 
  	if (errno != 0) {
 		perror("CHILD: uncaught error:");
@@ -226,10 +221,10 @@ main (int argc, char** argv)
 
 // calculates the time at which child terminates
 oss_clock_t
-calcendtime(oss_clock_t* clock, int quantum)
+calcendtime(oss_clock_t clock, int quantum)
 {
-	int s = clock->sec;
-	int ns = clock->nsec;
+	int s = clock.sec;
+	int ns = clock.nsec;
 	ns += quantum;
 	if (ns >= 1000000000) {
 		s++;
@@ -239,6 +234,43 @@ calcendtime(oss_clock_t* clock, int quantum)
 	endtime.sec = s;
 	endtime.nsec = ns;
 	return endtime;	
+}
+
+// calculate used cpu time
+oss_clock_t
+calcusedtime(oss_clock_t start, oss_clock_t clock)
+{
+	int s = clock.sec;
+	int ns = clock.nsec;
+	oss_clock_t usedtime;
+	if (start.sec == s) {
+		usedtime.sec = 0;
+		usedtime.nsec = ns - start.nsec;
+	} else {
+		usedtime.sec = 0;
+		usedtime.nsec = (1000000000 - start.nsec) + clock.nsec;	
+	}
+	return usedtime;
+}
+
+oss_clock_t*
+initsharedclock(const key_t shmkey)
+{
+	int shmid = getclockshmid_ro(shmkey);
+	if (shmid == -1) {
+		return (void*)-1;
+	}
+	return attachshmclock(shmid);
+}
+
+pxs_cb_t*
+initshareddispatch(const key_t diskey)
+{
+	int shmid = getdispatchshmid(diskey);
+	if (shmid == -1) {
+		return (void*)-1;
+	}
+	return attachshmdispatch(shmid);
 }
 
 /***** NOTE about semaphores *****/
@@ -271,6 +303,28 @@ sem_signal()
 	return 0;
 }
 
+// initialize semaphore operations
+int
+initsemaphores(const key_t skey)
+{
+	semid = semget(skey, 4, PERM);
+	if (semid == -1) {
+		if (errno == EIDRM) {
+			perror("CHILD: Interrupted");
+			return -1;
+		}
+		perror("CHILD: Failed to set up semaphore.");
+		return -1;
+	}
+	// mutex for reading from shared memory
+	setsembuf(mutex, 0, -1, 0);
+	setsembuf(mutex+1, 0, 1, 0);
+	// msgsignal for letting parent know when message is available
+	setsembuf(msgsignal, 2, 1, 0);
+	// for signaling parent to dispatch another guy
+	setsembuf(dispatchsig, 3, 1, 0);
+	return 0;
+}
 // initialize signal handler, return -1 on error
 int
 initsighandler()

@@ -26,7 +26,7 @@ static int msg_id;
 static int shm_clock_id;
 static int shm_dispatch_id;
 static oss_clock_t* shm_clock_addr;
-static pxs_id_t* shm_dispatch_addr;
+static pxs_cb_t* shm_dispatch_addr;
 
 // Initializes semaphore with id, num, and value
 // returns -1 on failure
@@ -80,7 +80,7 @@ getclockshmid(const key_t shmkey)
 int
 getdispatchshmid(const key_t shmkey)
 {
-	shm_dispatch_id = shmget(shmkey, sizeof(pxs_id_t), PERM|IPC_CREAT);
+	shm_dispatch_id = shmget(shmkey, sizeof(pxs_cb_t), PERM|IPC_CREAT);
 	if (shm_dispatch_id == -1) {
 		return -1;
 	}
@@ -94,12 +94,14 @@ getclockshmid_ro(const key_t shmkey)
 	return shmget(shmkey, sizeof(oss_clock_t), RPERM);
 }
 
+/*
 // gets shared memory (read only), returns -1 on error and shmid on success
 int
 getdispatchshmid_ro(const key_t shmkey)
 {
-	return shmget(shmkey, sizeof(pxs_id_t), RPERM);
+	return shmget(shmkey, sizeof(pxs_cb_t), RPERM);
 }
+*/
 
 // attach system clock to shared memory segment, return -1 on error
 oss_clock_t*
@@ -113,10 +115,10 @@ attachshmclock(const int shmid)
 }
 
 // attach dispatch to shared memory segment, return -1 on error
-pxs_id_t*
+pxs_cb_t*
 attachshmdispatch(const int shmid)
 {
-	shm_dispatch_addr = (pxs_id_t*)shmat(shmid, NULL, 0);
+	shm_dispatch_addr = (pxs_cb_t*)shmat(shmid, NULL, 0);
 	if (shm_dispatch_addr == (void*)-1) {
 		return (void*)-1;
 	}
@@ -137,7 +139,7 @@ setsembuf(struct sembuf *s, int n, int op, int flg)
 // send messages to msgqueue, return -1 on error
 int
 sendmessage(const int msgid, const long pid,
-		const oss_clock_t endtime, oss_clock_t* clock)
+		const oss_clock_t endtime, const oss_clock_t clock)
 {
 	mymsg_t* mymsg = (mymsg_t*) malloc(sizeof(mymsg_t));
 	if (mymsg == NULL) {
@@ -145,8 +147,8 @@ sendmessage(const int msgid, const long pid,
 	}
 	// ti is current time
 	// eti is child expiry time 
-	int t0 = clock->sec;
-	int t1 = clock->nsec;
+	int t0 = clock.sec;
+	int t1 = clock.nsec;
 	int et0 = endtime.sec;
 	int et1 = endtime.nsec;
 	// strings and what not

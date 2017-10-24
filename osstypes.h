@@ -26,14 +26,7 @@ typedef struct
 	unsigned int system_total_time;
 	unsigned int last_burst_time;
 	unsigned int priority;
-} pxs_cb_t;
-
-// dispatched process
-typedef struct 
-{
-	unsigned int proc_id;
 	unsigned int quantum;
-} pxs_id_t;
-
+} pxs_cb_t;
 
 #endif
