@@ -72,24 +72,25 @@ decidepriority(pxs_cb_t* process)
 		q = q / 4;
 	process->priority = p;
 	process->quantum = q;
-	addtoqueue(process, p);
+	addtopriorityqueue(*process);
 	return p;
 }
 
 // puts given process block in given queue, returns index or -1 on failure
 int
-addtoqueue(pxs_cb_t* process, int qnum)
+addtopriorityqueue(pxs_cb_t process)
 {
+	int qnum = process.priority;
 	int index = findfreeblockqueue(qnum);
 	if (index == -1)
 		return -1;
-	queue[qnum][index] = *process;
+	queue[qnum][index] = process;
 	return index;
 }
 
 // removes given process from queue, return -1 if not found
 int
-removefromqueue(const pxs_cb_t process)
+removefrompriorityqueue(const pxs_cb_t process)
 {
 	int qnum = process.priority;
 	int index = findprocessindexqueue(process);

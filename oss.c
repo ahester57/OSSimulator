@@ -47,7 +47,7 @@ $Author: o1-hester $
 #include "ipchelper.h"
 #include "sighandler.h"
 //#include "filehelper.h"
-#include "procsched.h"
+//#include "procsched.h"
 #include "proccntl.h"
 #define FILEPERMS (O_WRONLY | O_TRUNC | O_CREAT)
 //#define MAXPROCESSES 18
@@ -233,7 +233,7 @@ main (int argc, char** argv)
 
 	/********* Process control block vector  *****/
 	initprocesscntlblock();
-	initpriorityqueue();
+//	initpriorityqueue();
 
 	pxs_cb_t* block = getprocesscntlblock();
 	// check if pxs control block successful
@@ -313,51 +313,48 @@ main (int argc, char** argv)
 			fprintf(stderr, "OSS: %s\n", m0);
 			return 1;
 		}
-		// The PARENT LOOP
-		// continuously adds children until:
-		// > the clock has reached 2 s
-		// > 100 children have been spawned
 		childcount = 0;
-		int nextuser = 0;
 		for (i = 0; i < MAXPROCESSES; i++) {
 			forknextprocess();
 		}
-		usleep(100000);
-		//dispatchprocess(dispatch, 10);
-		while (clock->sec < 20 || childcount < MAXPROCESSES)
+		usleep(10000);
+		// The PARENT LOOP
+		int nextuser = 0;
+		int count = MAXPROCESSES;
+		while (count > 0)
 		{
-			if (childcount > 18) {
-				// don't have too many kids at once
-				wait(NULL);			
-			}
 				
 			if (childcount < MAXPROCESSES) {
-				while (clock->sec < nextuser)
-				{
-
-				}
-				int ran = (int)(rand()) % 3;
-				nextuser += ran;
-				//spawn new child
+				// wait until next scheduled time
+				while (clock->sec < nextuser){}
+				// dispatch next child
 				dispatchnextprocess(dispatch);
+				//childcount++;
 				fprintf(stderr, "time: %d\n", clock->sec);
 				fprintf(stderr, "dch:\t %d\n", dispatch->proc_id);
-				childcount++;
+				int ran = (int)(rand()) % 3;
+				nextuser += ran;
 				if (ran == 0) {
-					usleep(50000);
+					//usleep(50000);
 				}
-				//fprintf(stderr, "asdfasdf\n");
+		
+
 				if (semop(semid, dispatchwait, 1) == -1) {
 					perror("OSS: Dispatch fail.");
 					return 1;
 				}
-				updatecontrolblock(*dispatch);
-				if (childcount == MAXPROCESSES)
-					break;
+				updatecontrolblock(dispatch);
+				addtoreadyqueue(*dispatch);
+
+				count = getcountinqueue();
+				fprintf(stderr, "left:\t %d\n", count);
+				// wait for child to signal next
+				//if (childcount == MAXPROCESSES)
+				//	break;
 			}
 		}
 		/*
-		pxs_cb_t** queue = getpriorityqueue();
+		pxs_cb_t** queue = getpqueue();
 		for (i = 0; i < 3; i++) {
 			for (e = 0; e < 18; e++) {
 			fprintf(stderr, "%d\t", queue[i][e].proc_id);
@@ -385,10 +382,11 @@ main (int argc, char** argv)
 		 * with pthread_join( "clock thread id" );
 		 * lets message thread deal with its queue */
 		fprintf(stderr, "OSS: Waiting for clock now.\n");
-		if (pthread_join(ctid, NULL) != 0) {
-			perror("OSS: Failed to join clock thread.");
-			return 1;
-		}
+		pthread_cancel(ctid);
+		//if (pthread_join(ctid, NULL) != 0) {
+		//	perror("OSS: Failed to join clock thread.");
+		//	return 1;
+		//}
 		
 		// close message listening thread
 		pthread_cancel(tid);
@@ -402,8 +400,9 @@ main (int argc, char** argv)
 			fprintf(stderr, "Wait Time: %d\n", block[i].wait_time);
 			sum += block[i].wait_time;
 		}
-		fprintf(stderr, "OSS: Avg wait: %ld\n", sum/MAXPROCESSES);
 
+		fprintf(stderr, "OSS: Avg wait: %ld\n", sum/MAXPROCESSES);
+		dprintf(logf, "OSS: Avg wait: %ld\n", sum/MAXPROCESSES);
 
 		fprintf(stderr, "OSS: All children accounted for\n");
 		dprintf(logf, "OSS: All children accounted for\n");
@@ -421,7 +420,6 @@ main (int argc, char** argv)
 			perror("OSS: Failed to remove shared memory.");
 			return 1;
 		}
-		freequeue();
 		freeprocesscntlblock();
 		fprintf(stderr, "OSS: Done. %ld\n",(long)getpgid(getpid()));
 	}	
@@ -435,7 +433,7 @@ updateclock(oss_clock_t* clock)
 	if (clock == NULL)
 		return;
 	clock->nsec += 50;
-	if (clock->nsec >= 1000000000) {
+	if (clock->nsec >= BILLION) {
 		clock->sec += 1;
 		clock->nsec = 0;
 	}
@@ -449,7 +447,7 @@ systemclock(void* args)
 	oss_clock_t* clock = (oss_clock_t*)(args);
 	if (clock == NULL)
 		return NULL;
-	while (clock->sec < 100)
+	while (clock->sec < 200)
 	{
 		if (clock == NULL)
 			return NULL;
@@ -562,15 +560,18 @@ msgthread(void* args)
 		// CRITICAL SECTION
 		mymsg_t msg;
 		// retrieve message
+		int id;
 		ssize_t sz = getmessage(msgid, &msg);
 		if (sz != (ssize_t)-1) {
 			char* m0 = "MSGTHREAD: ";
 			char* m1 = msg.mtext;
-			int id = msg.proc_id;
+			id = msg.proc_id;
 			sumnow += id;
 			dprintf(logf, "%s%s\n",m0,m1);
 			fprintf(stderr, "%s%s\n",m0,m1);
 		} 
+
+		removefromreadyqueue(findprocessbyid(id));
 
 		// unlock file
 		if (semop(semid, mutex+1, 1) == -1) { 		

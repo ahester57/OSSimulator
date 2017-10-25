@@ -22,6 +22,7 @@ static unsigned int prev_id = 10;
 int
 initprocesscntlblock()
 {
+	initpriorityqueue();
 	pxscntlblock = (pxs_cb_t*)malloc(MAXPROCESSES*sizeof(pxs_cb_t));
 	if (pxscntlblock == NULL)
 		return -1;
@@ -39,6 +40,27 @@ getprocesscntlblock()
 	if (pxscntlblock != NULL)
 		return pxscntlblock;
 	return NULL;
+}
+
+pxs_cb_t**
+getpqueue()
+{
+	return getpriorityqueue();
+}
+
+int
+getcountinqueue()
+{
+	int i, e, count = 0;	
+	pxs_cb_t** queue = getpriorityqueue();
+	for (i = 0; i < 3; i++) {
+		for (e = 0; e < 18; e++) {
+			if (queue[i][e].proc_id != -1) {
+				count++;
+			}
+		}
+	}
+	return count;
 }
 
 // assign priorities to each process
@@ -109,13 +131,13 @@ forknextprocess()
 
 // update process cntl block
 int
-updatecontrolblock(pxs_cb_t process)
+updatecontrolblock(pxs_cb_t* process)
 {
-	int index = findprocessindex(process);
+	int index = findprocessindex(*process);
 	if (index == -1) {
 		return -1;
 	}
-	pxscntlblock[index] = process;
+	pxscntlblock[index] = *process;
 	return 0;
 }
 
@@ -131,7 +153,24 @@ makenewprocessblock()
 	newpxs.wait_time = 0;
 	newpxs.priority = 0;
 	newpxs.quantum = 0;
+	newpxs.done = 0;
 	return newpxs;
+}
+
+// add process to ready queue
+int
+addtoreadyqueue(pxs_cb_t process)
+{
+	if (process.done == 0)
+		return addtopriorityqueue(process);
+	else
+		return -1;
+}
+
+int
+removefromreadyqueue(pxs_cb_t process)
+{
+	return removefrompriorityqueue(process);
 }
 
 // puts given process block in block, returns index or -1 on failure
@@ -171,6 +210,19 @@ findprocessindex(const pxs_cb_t process)
 	return -1;
 }
 
+pxs_cb_t
+findprocessbyid(const int proc_id)
+{
+	int i;
+	for (i = 0; i < MAXPROCESSES; i++) {
+		// if process found
+		if (pxscntlblock[i].proc_id == proc_id) {
+			return pxscntlblock[i];
+		}
+	}
+	return openblock;
+}
+
 // returns 1st open block, return -1 if full
 int
 findfreeblock()
@@ -189,6 +241,7 @@ findfreeblock()
 int
 freeprocesscntlblock()
 {
+	freequeue();
 	free(pxscntlblock);
 	if (errno)
 		return errno;

@@ -2,6 +2,7 @@
 #define OSSTYPES_H_
 
 #define LINESIZE 256
+#define BILLION 1000000000
 
 // for message queues
 typedef struct
@@ -28,6 +29,7 @@ typedef struct
 	unsigned int wait_time;
 	unsigned int priority;
 	unsigned int quantum;
+	int done;
 } pxs_cb_t;
 
 #endif

@@ -109,9 +109,12 @@ main (int argc, char** argv)
 	}
 
 	/************** Wait until dispatched **********/
+	int complete = 0;
 	oss_clock_t wait;
+	do {
 	wait.sec = clock->sec;
 	wait.nsec = clock->nsec;
+	usleep(50000);	
 	while (myid != dispatch->proc_id)
 	{
 		if (clock == NULL || dispatch == NULL) {
@@ -119,6 +122,7 @@ main (int argc, char** argv)
 			return 1;
 		}
 	}
+	fprintf(stderr,"WAITING AGAIN!\t%d\n", dispatch->proc_id);
 	wait = calcusedtime(wait, *clock);
 	dispatch->wait_time += wait.nsec;
 
@@ -185,13 +189,6 @@ main (int argc, char** argv)
 		|| (end.sec < clock->sec)) {
 		// child's time is up
 		expiry = 1;
-		fprintf(stderr, "USER: Hey im done %d\n", myid);
-		sendmessage(msgid, myid, end, *clock);
-		// signal parent that a new message is available
-		if (semop(semid, msgsignal, 1) == -1) {
-			perror("CHILD: Failed to signal parent.");
-			return 1;	
-		}
 	}
 	/*********** Exit section **************/
 	// unlock shared memory read 
@@ -214,14 +211,41 @@ main (int argc, char** argv)
 	usedtime = calcusedtime(start, *clock);
 	dispatch->used_cpu_time += usedtime.nsec;
 
+
+	// decide if complete after 50 ms
+	if (dispatch->used_cpu_time > 50000000) {
+		complete = (int)(rand()) % 2;
+		if (complete) {
+			fprintf(stderr, "USER: Hey im done %d\n", myid);
+			dispatch->done = 1;
+			sendmessage(msgid, myid, end, *clock);
+			// signal parent that a new message is available
+			if (semop(semid, msgsignal, 1) == -1) {
+				perror("CHILD: Failed to signal parent.");
+				return 1;	
+			}
+			break;
+		}
+	} else {
+		// add back to ready queue
+		// signal parent to dispatch a new process
+		if (semop(semid, dispatchsig, 1) == -1) {
+			perror("USER: Failed to signal dispatcher");
+			return 1;
+		}
+		usleep(500000);
+	}
+	} while (!complete); // end whole wile
+	
+
 	// detach shared memory
 	if (shmdt(dispatch) == -1 || shmdt(clock) == -1) {
 		perror("USER: Failed to detach shared memory.");
 		return 1;
 	}
-	// signal parent to dispatch a new process
+
 	if (semop(semid, dispatchsig, 1) == -1) {
-		perror("USER: Failed to signal dispatcher.");
+		perror("USER: Failed to signal dispatcher");
 		return 1;
 	}
 
@@ -239,9 +263,9 @@ calcendtime(oss_clock_t clock, int quantum)
 	int s = clock.sec;
 	int ns = clock.nsec;
 	ns += quantum;
-	if (ns >= 1000000000) {
+	if (ns >= BILLION) {
 		s++;
-		ns = ns % 1000000000;
+		ns = ns % BILLION;
 	}
 	oss_clock_t endtime;
 	endtime.sec = s;
@@ -262,7 +286,7 @@ calcusedtime(oss_clock_t start, oss_clock_t clock)
 	} else {
 		// add support for > 1 sec	
 		usedtime.sec = 0;
-		usedtime.nsec = (1000000000 - start.nsec) + clock.nsec;	
+		usedtime.nsec = (BILLION - start.nsec) + clock.nsec;	
 	}
 	return usedtime;
 }
