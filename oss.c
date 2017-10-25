@@ -335,7 +335,7 @@ main (int argc, char** argv)
 				int ran = (int)(rand()) % 3;
 				nextuser += ran;
 				if (ran == 0) {
-					//usleep(50000);
+					usleep(50000);
 				}
 		
 
@@ -365,16 +365,17 @@ main (int argc, char** argv)
 		// Waits for all children to be done
 		fprintf(stderr, "OSS: Waiting for children now.\n");
 		// dispatch rest
+		// leave no zombies
 		for (i = 10; i < 10+MAXPROCESSES; i++) {
 			dispatchprocess(dispatch, i);
-			usleep(50000);
-			wait(NULL);
-			if (errno == ECHILD)
-				break;
+			usleep(500);
 		}
-		// leave no zombies
 		while (wait(NULL))
 		{
+		for (i = 10; i < 10+MAXPROCESSES; i++) {
+			dispatchprocess(dispatch, i);
+			usleep(500);
+		}
 			if (errno == ECHILD)
 				break;
 		}

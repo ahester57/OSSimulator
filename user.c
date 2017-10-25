@@ -235,6 +235,8 @@ main (int argc, char** argv)
 		}
 		usleep(500000);
 	}
+	if (clock->sec > 60)
+		break;
 	} while (!complete); // end whole wile
 	
 

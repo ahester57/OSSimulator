@@ -13,12 +13,12 @@
 # ps someone run this logged in as o1-kaur pls
 
 oss=`ps -a | grep oss | awk 'NR==1{ print $1 }'`
-kill -9 $oss 2> /dev/null
+kill -9 $oss 2> /dev/null || true
 
-begin=`ps -a | grep -e user -e child | awk 'NR==1{ print $1 }'`
+begin=`ps | grep -e user -e child | awk 'NR==1{ print $1 }'`
 for i in `seq 0 16`;
 do
 	this=$(($begin + $i))
-	kill -9 $this 2> /dev/null
+	kill -9 $this || true
 done
-ipcrm -all 2> /dev/null
+`ipcrm -all 2> /dev/null` || true
