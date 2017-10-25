@@ -25,6 +25,7 @@ typedef struct
 	unsigned int used_cpu_time;
 	unsigned int system_total_time;
 	unsigned int last_burst_time;
+	unsigned int wait_time;
 	unsigned int priority;
 	unsigned int quantum;
 } pxs_cb_t;

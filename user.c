@@ -109,6 +109,9 @@ main (int argc, char** argv)
 	}
 
 	/************** Wait until dispatched **********/
+	oss_clock_t wait;
+	wait.sec = clock->sec;
+	wait.nsec = clock->nsec;
 	while (myid != dispatch->proc_id)
 	{
 		if (clock == NULL || dispatch == NULL) {
@@ -116,6 +119,8 @@ main (int argc, char** argv)
 			return 1;
 		}
 	}
+	wait = calcusedtime(wait, *clock);
+	dispatch->wait_time += wait.nsec;
 
 	// seed random 
 	struct timespec tm;
@@ -156,10 +161,18 @@ main (int argc, char** argv)
 	{	
 	/************ Entry section ***************/	
 	// wait until your turn
+	// track wait time
+	wait.sec = clock->sec;
+	wait.nsec = clock->nsec;
+
 	if (sem_wait() == -1) {
 		// failed to lock shm
 		return 1;
 	}
+	// need support for multiple waits
+	wait = calcusedtime(wait, *clock);
+	dispatch->wait_time += wait.nsec;
+
 	// Block all signals during critical section
 	sigset_t newmask, oldmask; 	
 	if ((sigfillset(&newmask) == -1) ||
@@ -247,6 +260,7 @@ calcusedtime(oss_clock_t start, oss_clock_t clock)
 		usedtime.sec = 0;
 		usedtime.nsec = ns - start.nsec;
 	} else {
+		// add support for > 1 sec	
 		usedtime.sec = 0;
 		usedtime.nsec = (1000000000 - start.nsec) + clock.nsec;	
 	}

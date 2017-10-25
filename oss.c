@@ -346,13 +346,14 @@ main (int argc, char** argv)
 				if (ran == 0) {
 					usleep(50000);
 				}
-				if (childcount == MAXPROCESSES)
-					break;
 				//fprintf(stderr, "asdfasdf\n");
 				if (semop(semid, dispatchwait, 1) == -1) {
 					perror("OSS: Dispatch fail.");
 					return 1;
 				}
+				updatecontrolblock(*dispatch);
+				if (childcount == MAXPROCESSES)
+					break;
 			}
 		}
 		/*
@@ -370,7 +371,11 @@ main (int argc, char** argv)
 		for (i = 10; i < 10+MAXPROCESSES; i++) {
 			dispatchprocess(dispatch, i);
 			usleep(50000);
+			wait(NULL);
+			if (errno == ECHILD)
+				break;
 		}
+		// leave no zombies
 		while (wait(NULL))
 		{
 			if (errno == ECHILD)
@@ -387,6 +392,18 @@ main (int argc, char** argv)
 		
 		// close message listening thread
 		pthread_cancel(tid);
+
+		// output stuff
+		unsigned long int sum = 0;
+		block = getprocesscntlblock();
+		for (i = 0; i < MAXPROCESSES; i++) {
+			fprintf(stderr, "%d\t", block[i].proc_id);
+			fprintf(stderr, "Used CPU Time: %d\t", block[i].used_cpu_time);
+			fprintf(stderr, "Wait Time: %d\n", block[i].wait_time);
+			sum += block[i].wait_time;
+		}
+		fprintf(stderr, "OSS: Avg wait: %ld\n", sum/MAXPROCESSES);
+
 
 		fprintf(stderr, "OSS: All children accounted for\n");
 		dprintf(logf, "OSS: All children accounted for\n");

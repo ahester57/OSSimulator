@@ -67,6 +67,11 @@ dispatchnextprocess(pxs_cb_t* dispatch)
 		next = getnextscheduledproc();
 	} while (next.proc_id == -1);	
 	dispatch->proc_id = next.proc_id;	
+	dispatch->used_cpu_time = next.used_cpu_time;
+	dispatch->system_total_time = next.system_total_time;
+	dispatch->last_burst_time = next.last_burst_time;
+	dispatch->wait_time = next.wait_time;
+	dispatch->priority = next.priority;
 	dispatch->quantum = next.quantum;
 	//dispatch->proc_id = dispatch_count;	
 	dispatch_count++;
@@ -102,6 +107,18 @@ forknextprocess()
 	return 0;
 }
 
+// update process cntl block
+int
+updatecontrolblock(pxs_cb_t process)
+{
+	int index = findprocessindex(process);
+	if (index == -1) {
+		return -1;
+	}
+	pxscntlblock[index] = process;
+	return 0;
+}
+
 // initialize a new process
 pxs_cb_t
 makenewprocessblock()
@@ -111,7 +128,9 @@ makenewprocessblock()
 	newpxs.used_cpu_time = 0;
 	newpxs.system_total_time = 0;
 	newpxs.last_burst_time = 0;
+	newpxs.wait_time = 0;
 	newpxs.priority = 0;
+	newpxs.quantum = 0;
 	return newpxs;
 }
 

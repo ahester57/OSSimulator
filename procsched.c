@@ -65,12 +65,12 @@ decidepriority(pxs_cb_t* process)
 {
 	int p;
 	p = (int) rand() % 3;
-	process->priority = p;
 	int q = 10000000;
 	if (p == 1)
 		q = q / 2;
 	else if (p == 2)
 		q = q / 4;
+	process->priority = p;
 	process->quantum = q;
 	addtoqueue(process, p);
 	return p;
@@ -118,7 +118,7 @@ int
 findprocessindexqueue(const pxs_cb_t process)
 {
 	int proc_id = process.proc_id;
-	int priority = process.proc_id;
+	int priority = process.priority;
 	int i;
 	for (i = 0; i < MAXPROCESSES; i++) {
 		// if process found

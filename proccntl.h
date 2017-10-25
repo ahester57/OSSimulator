@@ -11,6 +11,7 @@ int dispatchnextprocess(pxs_cb_t* dispatch);
 int dispatchprocess(pxs_cb_t* dispatch, int proc_id);
 int forknextprocess();
 pxs_cb_t makenewprocessblock();
+int updatecontrolblock(pxs_cb_t process);
 int addtoblock(pxs_cb_t process);
 int removefromblock(const pxs_cb_t process);
 int findprocessindex(const pxs_cb_t process);
