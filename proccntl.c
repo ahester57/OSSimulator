@@ -87,6 +87,8 @@ dispatchnextprocess(pxs_cb_t* dispatch)
 	do
 	{
 		next = getnextscheduledproc();
+		if (!isinpriorityqueue(next.proc_id))
+			next.proc_id = -1;
 	} while (next.proc_id == -1);	
 	dispatch->proc_id = next.proc_id;	
 	dispatch->used_cpu_time = next.used_cpu_time;
@@ -161,10 +163,10 @@ makenewprocessblock()
 int
 addtoreadyqueue(pxs_cb_t process)
 {
-	if (process.done == 0)
-		return addtopriorityqueue(process);
-	else
-		return -1;
+	return addtopriorityqueue(process);
+	//if (process.done == 0)
+	//else
+	//	return -1;
 }
 
 int

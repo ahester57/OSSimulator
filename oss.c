@@ -58,9 +58,11 @@ struct sembuf mutex[2];
 struct sembuf msgwait[1];
 struct sembuf dispatchwait[1];
 
+unsigned int done[MAXPROCESSES];
 int sumtoreach;
 int sumnow;
 // clock
+int isitdone(int id);
 void updateclock(oss_clock_t* clock);
 void* systemclock(void* args);
 // spawning children
@@ -68,11 +70,13 @@ long spawnchild();
 void* logchildcreate(void* args);
 // message listener
 void* msgthread(void* args);
+void* dispatchrest(void* args);
 // initiators
 int initsemaphores(int semid);
 int initsighandlers();
 oss_clock_t* initsharedclock(const int shmid);
 pxs_cb_t* initshareddispatch(const int shmid);
+int getfirstnegativeindex();
 //print usage/error
 void printusage();
 void printopterr(const char optopt);
@@ -81,6 +85,10 @@ void printopterr(const char optopt);
 int
 main (int argc, char** argv)
 {
+	int a;
+	for (a = 0; a < MAXPROCESSES; a++) {
+		done[a] = -1;
+	}
 	/*************** Get options  *****************/
 	// use getopt_long for long-named options
 	// --quiet/silent
@@ -328,24 +336,28 @@ main (int argc, char** argv)
 				// wait until next scheduled time
 				while (clock->sec < nextuser){}
 				// dispatch next child
+				usleep(50000);
 				dispatchnextprocess(dispatch);
 				//childcount++;
 				fprintf(stderr, "time: %d\n", clock->sec);
 				fprintf(stderr, "dch:\t %d\n", dispatch->proc_id);
-				int ran = (int)(rand()) % 3;
+				int ran = 0;//(int)(rand()) % 3;
 				nextuser += ran;
 				if (ran == 0) {
 					usleep(50000);
 				}
-		
-
+				if (count == 1)
+					break;
+				if (!isitdone(dispatch->proc_id)) {
+				addtoreadyqueue(*dispatch);
 				if (semop(semid, dispatchwait, 1) == -1) {
 					perror("OSS: Dispatch fail.");
 					return 1;
 				}
+				}
 				updatecontrolblock(dispatch);
-				addtoreadyqueue(*dispatch);
 
+				//usleep(500000);
 				count = getcountinqueue();
 				fprintf(stderr, "left:\t %d\n", count);
 				// wait for child to signal next
@@ -366,19 +378,26 @@ main (int argc, char** argv)
 		fprintf(stderr, "OSS: Waiting for children now.\n");
 		// dispatch rest
 		// leave no zombies
+		pthread_t rtid;
+		e = pthread_create(&rtid, NULL, dispatchrest, (void*)dispatch);
+		if (e) {
+			char* m0 = "Failed to create dispatch thread.";
+			fprintf(stderr, "OSS: %s\n", m0);
+			return 1;
+		}
+		//pid_t gpid = getpgid(getpid());
+		//kill(gpid, SIGINT);
 		for (i = 10; i < 10+MAXPROCESSES; i++) {
 			dispatchprocess(dispatch, i);
 			usleep(500);
 		}
+		fprintf(stderr, "OSS: Waiting for children now.\n");
 		while (wait(NULL))
 		{
-		for (i = 10; i < 10+MAXPROCESSES; i++) {
-			dispatchprocess(dispatch, i);
-			usleep(500);
-		}
 			if (errno == ECHILD)
 				break;
 		}
+		pthread_cancel(rtid);
 		/* wait until clock is finished to close everything
 		 * with pthread_join( "clock thread id" );
 		 * lets message thread deal with its queue */
@@ -440,7 +459,6 @@ updateclock(oss_clock_t* clock)
 	}
 	return;
 }
-
 // thread for udpating system clock
 void*
 systemclock(void* args)
@@ -448,7 +466,7 @@ systemclock(void* args)
 	oss_clock_t* clock = (oss_clock_t*)(args);
 	if (clock == NULL)
 		return NULL;
-	while (clock->sec < 200)
+	while (clock->sec < 10000)
 	{
 		if (clock == NULL)
 			return NULL;
@@ -462,6 +480,29 @@ systemclock(void* args)
 		}
 	}
 	return NULL;
+}
+
+
+int
+isitdone(int id)
+{
+	int i;
+	for (i = 0; i < MAXPROCESSES; i++) {
+		if (done[i] == id)
+			return 1;
+	}
+	return 0;
+}
+
+int
+getfirstnegativeindex()
+{
+	int i;
+	for (i = 0; i < MAXPROCESSES; i++) {
+		if (done[i] == -1)
+			return i;
+	}
+	return -1;
 }
 
 // spawns a new child, return childpid, -1 on error
@@ -572,6 +613,8 @@ msgthread(void* args)
 			fprintf(stderr, "%s%s\n",m0,m1);
 		} 
 
+		int index = getfirstnegativeindex();
+		done[index] = id;
 		removefromreadyqueue(findprocessbyid(id));
 
 		// unlock file
@@ -584,6 +627,23 @@ msgthread(void* args)
 		pthread_testcancel();
 	}
 	return NULL;	
+}
+
+void*
+dispatchrest(void* args)
+{
+	pxs_cb_t* dispatch = (pxs_cb_t*)(args);
+	int i;
+	while (1) {
+		for (i = 10; i < 10+MAXPROCESSES; i++) {
+			//fprintf(stderr, "happening %d\n", i);
+			dispatchprocess(dispatch, i);
+			usleep(50000);
+			pthread_testcancel();
+		}
+	}
+
+	return NULL;
 }
 
 /***** NOTE about semaphores *****/

@@ -9,6 +9,7 @@ int initpriorityqueue();
 pxs_cb_t** getpriorityqueue();
 pxs_cb_t getnextscheduledproc();
 int decidepriority(pxs_cb_t* process);
+int isinpriorityqueue(int proc_id);
 int addtopriorityqueue(pxs_cb_t process);
 int removefrompriorityqueue(const pxs_cb_t process);
 pxs_cb_t pop(int qnum);

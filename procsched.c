@@ -76,6 +76,23 @@ decidepriority(pxs_cb_t* process)
 	return p;
 }
 
+// tells whether there exists a pxs with given id
+int
+isinpriorityqueue(int proc_id)
+{
+	int i, j;
+	
+	for (i = 0; i < N_PRIORITIES; i++) {
+		// if process found
+		for (j = 0; j < MAXPROCESSES; j++) {
+			if (queue[i][j].proc_id == proc_id) {
+				return 0;
+			}
+		}
+	}
+	return 1;
+}
+
 // puts given process block in given queue, returns index or -1 on failure
 int
 addtopriorityqueue(pxs_cb_t process)

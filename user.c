@@ -233,10 +233,10 @@ main (int argc, char** argv)
 			perror("USER: Failed to signal dispatcher");
 			return 1;
 		}
-		usleep(500000);
+		usleep(60000);
 	}
-	if (clock->sec > 60)
-		break;
+	//if (clock->sec > 60)
+	//	break;
 	} while (!complete); // end whole wile
 	
 
