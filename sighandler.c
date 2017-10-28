@@ -42,15 +42,15 @@ catchctrlc(int signo)
 		write(STDERR_FILENO, msg, 34);
 	}
 	//kill(pgid, SIGINT);
+	removeshmem(-1, -1, -1, (void*)-1);
 	while(wait(NULL))
 	{
 		if (errno == ECHILD)
 			break;
 	}
-	removeshmem(-1, -1, -1, (void*)-1);
 	// KILL 'EM ALL, no whammies
 	kill(pgid, SIGKILL);
-	pthread_exit(NULL);
+	//pthread_exit(NULL);
 	exit(1);
 }
 

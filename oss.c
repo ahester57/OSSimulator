@@ -1,8 +1,11 @@
 /*
-$Id: oss.c,v 1.1 2017/10/23 07:27:24 o1-hester Exp o1-hester $
-$Date: 2017/10/23 07:27:24 $
-$Revision: 1.1 $
+$Id: oss.c,v 1.2 2017/10/26 03:30:40 o1-hester Exp o1-hester $
+$Date: 2017/10/26 03:30:40 $
+$Revision: 1.2 $
 $Log: oss.c,v $
+Revision 1.2  2017/10/26 03:30:40  o1-hester
+glad its over
+
 Revision 1.1  2017/10/23 07:27:24  o1-hester
 Initial revision
 
@@ -341,7 +344,7 @@ main (int argc, char** argv)
 				//childcount++;
 				fprintf(stderr, "time: %d\n", clock->sec);
 				fprintf(stderr, "dch:\t %d\n", dispatch->proc_id);
-				int ran = 0;//(int)(rand()) % 3;
+				int ran = (int)(rand()) % 3;
 				nextuser += ran;
 				if (ran == 0) {
 					usleep(50000);
@@ -357,12 +360,9 @@ main (int argc, char** argv)
 				}
 				updatecontrolblock(dispatch);
 
-				//usleep(500000);
+				usleep(500);
 				count = getcountinqueue();
 				fprintf(stderr, "left:\t %d\n", count);
-				// wait for child to signal next
-				//if (childcount == MAXPROCESSES)
-				//	break;
 			}
 		}
 		/*
@@ -375,7 +375,6 @@ main (int argc, char** argv)
 		}
 		*/
 		// Waits for all children to be done
-		fprintf(stderr, "OSS: Waiting for children now.\n");
 		// dispatch rest
 		// leave no zombies
 		pthread_t rtid;
@@ -384,12 +383,6 @@ main (int argc, char** argv)
 			char* m0 = "Failed to create dispatch thread.";
 			fprintf(stderr, "OSS: %s\n", m0);
 			return 1;
-		}
-		//pid_t gpid = getpgid(getpid());
-		//kill(gpid, SIGINT);
-		for (i = 10; i < 10+MAXPROCESSES; i++) {
-			dispatchprocess(dispatch, i);
-			usleep(500);
 		}
 		fprintf(stderr, "OSS: Waiting for children now.\n");
 		while (wait(NULL))
@@ -401,7 +394,7 @@ main (int argc, char** argv)
 		/* wait until clock is finished to close everything
 		 * with pthread_join( "clock thread id" );
 		 * lets message thread deal with its queue */
-		fprintf(stderr, "OSS: Waiting for clock now.\n");
+		fprintf(stderr, "OSS: Stopping clock now.\n");
 		pthread_cancel(ctid);
 		//if (pthread_join(ctid, NULL) != 0) {
 		//	perror("OSS: Failed to join clock thread.");
@@ -416,8 +409,11 @@ main (int argc, char** argv)
 		block = getprocesscntlblock();
 		for (i = 0; i < MAXPROCESSES; i++) {
 			fprintf(stderr, "%d\t", block[i].proc_id);
+			dprintf(logf, "%d\t", block[i].proc_id);
 			fprintf(stderr, "Used CPU Time: %d\t", block[i].used_cpu_time);
+			dprintf(logf, "Used CPU Time: %d\t", block[i].used_cpu_time);
 			fprintf(stderr, "Wait Time: %d\n", block[i].wait_time);
+			dprintf(logf, "Wait Time: %d\n", block[i].wait_time);
 			sum += block[i].wait_time;
 		}
 
@@ -459,6 +455,7 @@ updateclock(oss_clock_t* clock)
 	}
 	return;
 }
+
 // thread for udpating system clock
 void*
 systemclock(void* args)
@@ -482,7 +479,7 @@ systemclock(void* args)
 	return NULL;
 }
 
-
+// has this process terminated
 int
 isitdone(int id)
 {
@@ -494,6 +491,7 @@ isitdone(int id)
 	return 0;
 }
 
+// for adding to done list
 int
 getfirstnegativeindex()
 {
@@ -629,6 +627,7 @@ msgthread(void* args)
 	return NULL;	
 }
 
+// dispatches remaining process... shh
 void*
 dispatchrest(void* args)
 {

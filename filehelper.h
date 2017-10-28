@@ -1,8 +1,11 @@
 /*
-$Id: filehelper.h,v 1.1 2017/10/23 07:27:24 o1-hester Exp o1-hester $
-$Date: 2017/10/23 07:27:24 $
-$Revision: 1.1 $
+$Id: filehelper.h,v 1.2 2017/10/26 03:31:00 o1-hester Exp o1-hester $
+$Date: 2017/10/26 03:31:00 $
+$Revision: 1.2 $
 $Log: filehelper.h,v $
+Revision 1.2  2017/10/26 03:31:00  o1-hester
+ahh
+
 Revision 1.1  2017/10/23 07:27:24  o1-hester
 Initial revision
 
